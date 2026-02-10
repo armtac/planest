@@ -1,0 +1,22 @@
+@font-face {
+  font-family: 'Avenir Next Fallback';
+  src: local('Avenir Next'), local('Avenir');
+}
+
+:root {
+  font-family: 'Avenir Next Fallback', 'SF Pro Display', 'Helvetica Neue', sans-serif;
+  line-height: 1.45;
+  font-weight: 400;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background:
+    radial-gradient(1200px 600px at 0% 0%, rgba(0, 113, 227, 0.12), transparent 60%),
+    radial-gradient(900px 500px at 100% 20%, rgba(52, 199, 89, 0.12), transparent 50%),
+    #f4f6fb;
+}
+
+body {
+  margin: 0;
+}
