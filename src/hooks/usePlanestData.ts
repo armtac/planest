@@ -160,13 +160,13 @@ export const usePlanestData = () => {
     [refresh, safeSync],
   );
 
-  const updatePriorityTitle = useCallback(
-    async (categoryId: string, title: string) => {
+  const updatePriorityMeta = useCallback(
+    async (categoryId: string, title: string, color: string, colorName: string | null) => {
       const existing = await db.categories.get(categoryId);
       if (!existing) {
         return;
       }
-      const updated: PriorityCategory = { ...existing, title, updatedAt: nowIso() };
+      const updated: PriorityCategory = { ...existing, title, color, colorName, updatedAt: nowIso() };
       await db.categories.put(updated);
       await enqueueMutation({ table: 'categories', op: 'upsert', payload: updated, createdAt: nowIso() });
       await refresh();
@@ -439,7 +439,7 @@ export const usePlanestData = () => {
     addItem,
     addAction,
     updateActionProgress,
-    updatePriorityTitle,
+    updatePriorityMeta,
     updateItemTitle,
     updateActionTitle,
     deletePriority,

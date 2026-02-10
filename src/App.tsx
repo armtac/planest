@@ -132,6 +132,18 @@ const getColorOptionLabel = (value: string, colorCategories: Record<string, stri
   return category ? `${colorName} · ${category}` : colorName;
 };
 
+const resolvePresetColor = (input: string): (typeof presetColors)[number] | null => {
+  const normalized = input.trim().toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+  return (
+    presetColors.find((color) => color.value.toLowerCase() === normalized) ??
+    presetColors.find((color) => color.name.toLowerCase() === normalized) ??
+    null
+  );
+};
+
 type RecurrenceConfig = {
   type: string;
   startsAtLocal: string;
@@ -453,7 +465,7 @@ function App() {
     addItem,
     addAction,
     updateActionProgress,
-    updatePriorityTitle,
+    updatePriorityMeta,
     updateItemTitle,
     updateActionTitle,
     deletePriority,
@@ -516,12 +528,17 @@ function App() {
     }
   };
 
-  const handleEditPriority = async (categoryId: string, currentTitle: string) => {
+  const handleEditPriority = async (categoryId: string, currentTitle: string, currentColor: string) => {
     const next = window.prompt('Modifica titolo priorita', currentTitle);
     if (!next || !next.trim()) {
       return;
     }
-    await updatePriorityTitle(categoryId, next.trim());
+    const colorLabel = presetColors.find((color) => color.value === currentColor)?.name ?? currentColor;
+    const colorInput = window.prompt('Colore priorita (nome o codice)', colorLabel);
+    const resolved = colorInput ? resolvePresetColor(colorInput) : null;
+    const color = resolved?.value ?? currentColor;
+    const colorName = resolved ? colorCategories[resolved.value] || null : colorCategories[currentColor] || null;
+    await updatePriorityMeta(categoryId, next.trim(), color, colorName);
   };
 
   const handleEditItem = async (itemId: string, currentTitle: string) => {
@@ -552,6 +569,8 @@ function App() {
   const [filterPriority, setFilterPriority] = useState('all');
   const [filterUserId, setFilterUserId] = useState('all');
   const [priorityActionStatusFilter, setPriorityActionStatusFilter] = useState<'all' | 'open' | 'done'>('all');
+  const [expandedPriorityId, setExpandedPriorityId] = useState<string | null>(null);
+  const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
 
   const [priorityTitle, setPriorityTitle] = useState('');
   const [priorityOwnerUserId, setPriorityOwnerUserId] = useState('');
@@ -1527,14 +1546,14 @@ function App() {
                   }
 
                   return (
-                    <article key={priority.id} className="progress-card">
+                    <article key={priority.id} className="progress-card priority-card">
                       <SwipeActionRow
-                        onEdit={() => handleEditPriority(priority.id, priority.title)}
+                        onEdit={() => handleEditPriority(priority.id, priority.title, priority.color)}
                         onDelete={() => handleDeletePriority(priority.id)}
                         onDone={() => handleMarkPriorityDone(priority.id)}
                         onReopen={() => handleReopenPriority(priority.id)}
                       >
-                        <div className="progress-head hierarchy-row">
+                        <div className="progress-head hierarchy-row row-compact">
                           <div>
                             <small className="hierarchy-label">Priorita</small>
                             <h3>{priority.title}</h3>
@@ -1543,14 +1562,24 @@ function App() {
                               {colorCategories[priority.color] ? ` · ${colorCategories[priority.color]}` : ''}
                             </p>
                           </div>
-                          <strong style={{ color: priority.color }}>{categoryProgressMap.get(priority.id) ?? 0}%</strong>
+                          <div className="row-end">
+                            <strong style={{ color: priority.color }}>{categoryProgressMap.get(priority.id) ?? 0}%</strong>
+                            <button
+                              type="button"
+                              className="expand-btn"
+                              onClick={() => {
+                                setExpandedPriorityId((current) => (current === priority.id ? null : priority.id));
+                                setExpandedItemId(null);
+                              }}
+                            >
+                              {expandedPriorityId === priority.id ? '▾' : '▸'}
+                            </button>
+                          </div>
                         </div>
                       </SwipeActionRow>
-                      <div className="bar">
-                        <span style={{ width: `${categoryProgressMap.get(priority.id) ?? 0}%`, backgroundColor: priority.color }} />
-                      </div>
 
-                      {priorityItems.map((item) => {
+                      {expandedPriorityId === priority.id &&
+                        priorityItems.map((item) => {
                         const itemActions = priorityPageActions.filter((action) => action.itemId === item.id);
                         if (priorityActionStatusFilter !== 'all' && itemActions.length === 0) {
                           return null;
@@ -1563,34 +1592,47 @@ function App() {
                               onDone={() => handleMarkItemDone(item.id)}
                               onReopen={() => handleReopenItem(item.id)}
                             >
-                              <div className="item-head hierarchy-row">
+                              <div className="item-head hierarchy-row row-compact">
                                 <div>
                                   <small className="hierarchy-label">Voce</small>
                                   <h4>{item.title}</h4>
                                 </div>
-                                <strong>{itemProgressMap.get(item.id) ?? 0}%</strong>
+                                <div className="row-end">
+                                  <strong>{itemProgressMap.get(item.id) ?? 0}%</strong>
+                                  <button
+                                    type="button"
+                                    className="expand-btn"
+                                    onClick={() => setExpandedItemId((current) => (current === item.id ? null : item.id))}
+                                  >
+                                    {expandedItemId === item.id ? '▾' : '▸'}
+                                  </button>
+                                </div>
                               </div>
                             </SwipeActionRow>
-                            <div className="item-actions">
-                              {itemActions.map((action) => (
-                                <SwipeActionRow
-                                  key={action.id}
-                                  onEdit={() => handleEditAction(action.id, action.title)}
-                                  onDelete={() => handleDeleteAction(action.id)}
-                                  onDone={() => handleMarkActionDone(action.id)}
-                                  onReopen={() => handleReopenAction(action.id)}
-                                >
-                                  <div className="action-row action-row-readonly">
-                                    <span>
-                                      <small className="hierarchy-label">Azione</small>
-                                      <span>{action.title}</span>
-                                    </span>
-                                    <small>{action.percentComplete >= 100 ? 'Fatta' : 'Aperta'}</small>
-                                    <strong>{action.percentComplete}%</strong>
-                                  </div>
-                                </SwipeActionRow>
-                              ))}
-                            </div>
+                            {expandedItemId === item.id && (
+                              <div className="item-actions">
+                                {itemActions.map((action) => (
+                                  <SwipeActionRow
+                                    key={action.id}
+                                    onEdit={() => handleEditAction(action.id, action.title)}
+                                    onDelete={() => handleDeleteAction(action.id)}
+                                    onDone={() => handleMarkActionDone(action.id)}
+                                    onReopen={() => handleReopenAction(action.id)}
+                                  >
+                                    <div className="action-row action-row-readonly">
+                                      <div className="action-main">
+                                        <span className="action-topline">
+                                          <small className="hierarchy-label">Azione</small>
+                                          <strong>{action.percentComplete}%</strong>
+                                        </span>
+                                        <span>{action.title}</span>
+                                      </div>
+                                      <small>{action.percentComplete >= 100 ? 'Fatta' : 'Aperta'}</small>
+                                    </div>
+                                  </SwipeActionRow>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         );
                       })}

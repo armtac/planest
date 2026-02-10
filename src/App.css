@@ -452,9 +452,17 @@ button:disabled {
   align-items: center;
 }
 
-.action-row > span {
+.action-row > span,
+.action-main {
   display: grid;
   gap: 0.05rem;
+}
+
+.action-topline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
 }
 
 .hierarchy-row h3,
@@ -468,6 +476,26 @@ button:disabled {
   letter-spacing: 0.03em;
   text-transform: uppercase;
   color: var(--subtle);
+}
+
+.row-compact p {
+  margin: 0.08rem 0 0;
+}
+
+.row-end {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.expand-btn {
+  min-height: 30px;
+  width: 30px;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #f6f9ff;
+  color: var(--ink);
 }
 
 .swipe-delete {
@@ -526,11 +554,17 @@ button:disabled {
 }
 
 .action-row-readonly {
-  grid-template-columns: 1fr auto 52px;
+  grid-template-columns: 1fr auto;
 }
 
 .action-row-readonly small {
   color: var(--subtle);
+}
+
+.priority-card {
+  border: 1px solid color-mix(in srgb, var(--line), #334155 20%);
+  background: #ffffff;
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.05);
 }
 
 .calendar-card {
