@@ -132,16 +132,22 @@ const getColorOptionLabel = (value: string, colorCategories: Record<string, stri
   return category ? `${colorName} · ${category}` : colorName;
 };
 
-const resolvePresetColor = (input: string): (typeof presetColors)[number] | null => {
-  const normalized = input.trim().toLowerCase();
-  if (!normalized) {
-    return null;
+const parseRecurrenceRule = (
+  recurrenceRule: string | null,
+): { type: string; weekdays: string[]; untilDate: string } => {
+  if (!recurrenceRule) {
+    return { type: 'none', weekdays: [], untilDate: '' };
   }
-  return (
-    presetColors.find((color) => color.value.toLowerCase() === normalized) ??
-    presetColors.find((color) => color.name.toLowerCase() === normalized) ??
-    null
-  );
+  const raw = recurrenceRule.replace(/^RRULE:/, '');
+  const freq = /(?:^|;)FREQ=([^;]+)/.exec(raw)?.[1]?.toLowerCase() ?? 'none';
+  const byday = /(?:^|;)BYDAY=([^;]+)/.exec(raw)?.[1] ?? '';
+  const until = /(?:^|;)UNTIL=([^;]+)/.exec(raw)?.[1] ?? '';
+  const untilDate = until.length >= 8 ? `${until.slice(0, 4)}-${until.slice(4, 6)}-${until.slice(6, 8)}` : '';
+  return {
+    type: ['daily', 'weekly', 'monthly'].includes(freq) ? freq : 'none',
+    weekdays: byday ? byday.split(',').filter(Boolean) : [],
+    untilDate,
+  };
 };
 
 type RecurrenceConfig = {
@@ -273,19 +279,20 @@ const MentionHelper = ({
 const SwipeActionRow = ({
   onEdit,
   onDelete,
-  onDone,
-  onReopen,
+  leftAction,
   children,
 }: {
   onEdit?: () => Promise<void> | void;
   onDelete: () => Promise<void> | void;
-  onDone?: () => Promise<void> | void;
-  onReopen?: () => Promise<void> | void;
+  leftAction?: {
+    label: 'Fatto' | 'Riapri';
+    onClick: () => Promise<void> | void;
+  };
   children: ReactNode;
 }) => {
   const actionWidth = 88;
   const revealRight = onEdit ? actionWidth * 2 : actionWidth;
-  const revealLeft = onDone || onReopen ? actionWidth * 2 : 0;
+  const revealLeft = leftAction ? actionWidth : 0;
   const [offset, setOffset] = useState(0);
   const offsetRef = useRef(0);
   const startXRef = useRef<number | null>(null);
@@ -337,7 +344,7 @@ const SwipeActionRow = ({
       setOffset(-revealRight);
       return;
     }
-    if ((onDone || onReopen) && offsetRef.current >= revealLeft * 0.45) {
+    if (leftAction && offsetRef.current >= revealLeft * 0.45) {
       setOffset(revealLeft);
       return;
     }
@@ -349,19 +356,11 @@ const SwipeActionRow = ({
     setOffset(0);
   };
 
-  const handleDoneClick = async () => {
-    if (!onDone) {
+  const handleLeftActionClick = async () => {
+    if (!leftAction) {
       return;
     }
-    await onDone();
-    setOffset(0);
-  };
-
-  const handleReopenClick = async () => {
-    if (!onReopen) {
-      return;
-    }
-    await onReopen();
+    await leftAction.onClick();
     setOffset(0);
   };
 
@@ -375,15 +374,14 @@ const SwipeActionRow = ({
 
   return (
     <div className="swipe-delete">
-      {(onDone || onReopen) && (
-        <>
-          <button type="button" className="swipe-done-btn" onClick={() => void handleDoneClick()}>
-            Fatto
-          </button>
-          <button type="button" className="swipe-reopen-btn" onClick={() => void handleReopenClick()}>
-            Riapri
-          </button>
-        </>
+      {leftAction && (
+        <button
+          type="button"
+          className={leftAction.label === 'Riapri' ? 'swipe-reopen-btn' : 'swipe-done-btn'}
+          onClick={() => void handleLeftActionClick()}
+        >
+          {leftAction.label}
+        </button>
       )}
       {onEdit && (
         <button type="button" className="swipe-edit-btn" onClick={() => void handleEditClick()}>
@@ -472,8 +470,10 @@ function App() {
     deleteItem,
     deleteAction,
     addEvent,
+    updateEvent,
     deleteEventSeries,
     deleteEventOccurrence,
+    trimEventSeries,
     syncNow,
     usesSupabase,
   } = usePlanestData();
@@ -528,17 +528,29 @@ function App() {
     }
   };
 
-  const handleEditPriority = async (categoryId: string, currentTitle: string, currentColor: string) => {
-    const next = window.prompt('Modifica titolo priorita', currentTitle);
-    if (!next || !next.trim()) {
+  const handleStartEditPriority = (categoryId: string, currentTitle: string, currentColor: string) => {
+    setEditingPriorityId(categoryId);
+    setEditingPriorityTitle(currentTitle);
+    setEditingPriorityColor(currentColor);
+  };
+
+  const handleSaveEditPriority = async () => {
+    if (!editingPriorityId || !editingPriorityTitle.trim()) {
       return;
     }
-    const colorLabel = presetColors.find((color) => color.value === currentColor)?.name ?? currentColor;
-    const colorInput = window.prompt('Colore priorita (nome o codice)', colorLabel);
-    const resolved = colorInput ? resolvePresetColor(colorInput) : null;
-    const color = resolved?.value ?? currentColor;
-    const colorName = resolved ? colorCategories[resolved.value] || null : colorCategories[currentColor] || null;
-    await updatePriorityMeta(categoryId, next.trim(), color, colorName);
+    await updatePriorityMeta(
+      editingPriorityId,
+      editingPriorityTitle.trim(),
+      editingPriorityColor,
+      colorCategories[editingPriorityColor] || null,
+    );
+    setEditingPriorityId(null);
+    setEditingPriorityTitle('');
+  };
+
+  const handleCancelEditPriority = () => {
+    setEditingPriorityId(null);
+    setEditingPriorityTitle('');
   };
 
   const handleEditItem = async (itemId: string, currentTitle: string) => {
@@ -576,6 +588,9 @@ function App() {
   const [priorityOwnerUserId, setPriorityOwnerUserId] = useState('');
   const [priorityColor, setPriorityColor] = useState<string>(presetColors[0].value);
   const [colorCategories, setColorCategories] = useState<Record<string, string>>(() => loadColorCategories());
+  const [editingPriorityId, setEditingPriorityId] = useState<string | null>(null);
+  const [editingPriorityTitle, setEditingPriorityTitle] = useState('');
+  const [editingPriorityColor, setEditingPriorityColor] = useState<string>(presetColors[0].value);
 
   const [itemPriorityId, setItemPriorityId] = useState('');
   const [itemTitle, setItemTitle] = useState('');
@@ -597,6 +612,7 @@ function App() {
   const [eventReminderList, setEventReminderList] = useState<string[]>([]);
   const [eventColor, setEventColor] = useState<string>(presetColors[0].value);
   const [eventFile, setEventFile] = useState<File | null>(null);
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
 
   const [calendarView, setCalendarView] = useState<CalendarView>('month');
   const [calendarDate, setCalendarDate] = useState(new Date());
@@ -1143,9 +1159,10 @@ function App() {
     }
 
     const mentionUserIds = parseMentionUserIds(eventTitle, effectiveUsers);
-    const attachmentDataUrl = eventFile ? await fileToDataUrl(eventFile) : null;
+    const currentEditing = editingEventId ? events.find((entry) => entry.id === editingEventId) ?? null : null;
+    const attachmentDataUrl = eventFile ? await fileToDataUrl(eventFile) : currentEditing?.attachmentDataUrl ?? null;
 
-    await addEvent({
+    const input = {
       title: eventTitle.trim(),
       categoryId: eventPriorityId || null,
       startsAt: startsAtIso,
@@ -1156,22 +1173,30 @@ function App() {
         untilDate: eventRecurrenceUntil,
         weekdays: eventRecurrenceWeekdays,
       }),
-      exceptionDates: [],
+      exceptionDates: currentEditing?.exceptionDates ?? [],
       reminders: eventReminderList,
       mentionUserIds,
       color: eventColor,
       colorName: colorCategories[eventColor] || null,
-      attachmentName: eventFile?.name ?? null,
+      attachmentName: eventFile?.name ?? currentEditing?.attachmentName ?? null,
       attachmentDataUrl,
-    });
+    };
+
+    if (editingEventId) {
+      await updateEvent(editingEventId, input);
+    } else {
+      await addEvent(input);
+    }
 
     setEventTitle('');
+    setEventPriorityId('');
     setEventRecurrence('none');
     setEventRecurrenceUntil('');
     setEventRecurrenceWeekdays([]);
     setEventReminderInput('');
     setEventReminderList([]);
     setEventFile(null);
+    setEditingEventId(null);
   };
 
   const handleDeleteOccurrence = async (event: AgendaEvent) => {
@@ -1186,6 +1211,45 @@ function App() {
       return;
     }
     await deleteEventSeries(event.baseEventId);
+  };
+
+  const handleDeleteSeriesPartial = async (event: AgendaEvent) => {
+    if (event.source !== 'planest' || !event.isRecurring) {
+      return;
+    }
+    await trimEventSeries(event.baseEventId, event.occurrenceDate);
+  };
+
+  const handleStartEditEvent = (event: AgendaEvent) => {
+    if (event.source !== 'planest') {
+      return;
+    }
+    const sourceEvent = events.find((entry) => entry.id === event.baseEventId);
+    const recurrence = parseRecurrenceRule(sourceEvent?.recurrenceRule ?? null);
+    setEditingEventId(event.baseEventId);
+    setEventTitle(event.title);
+    setEventPriorityId(event.priorityId ?? '');
+    setEventStartsAt(toDateTimeLocalValue(event.startsAt));
+    setEventEndsAt(toDateTimeLocalValue(event.endsAt));
+    setEventColor(event.color);
+    setEventReminderList(sourceEvent?.reminders ?? []);
+    setEventReminderInput('');
+    setEventFile(null);
+    setEventRecurrence(recurrence.type);
+    setEventRecurrenceUntil(recurrence.untilDate);
+    setEventRecurrenceWeekdays(recurrence.weekdays);
+  };
+
+  const handleCancelEditEvent = () => {
+    setEditingEventId(null);
+    setEventTitle('');
+    setEventPriorityId('');
+    setEventReminderList([]);
+    setEventReminderInput('');
+    setEventFile(null);
+    setEventRecurrence('none');
+    setEventRecurrenceUntil('');
+    setEventRecurrenceWeekdays([]);
   };
 
   if (usesSupabase && !session) {
@@ -1430,6 +1494,42 @@ function App() {
               </form>
             </details>
 
+            {editingPriorityId && (
+              <details className="card panel-card" open>
+                <summary>Modifica Priorita</summary>
+                <form
+                  className="form-card details-form"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void handleSaveEditPriority();
+                  }}
+                >
+                  <input
+                    value={editingPriorityTitle}
+                    onChange={(event) => setEditingPriorityTitle(event.target.value)}
+                    placeholder="Titolo priorita"
+                    required
+                  />
+                  <label className="color-row">
+                    <span className="swatch" style={{ backgroundColor: editingPriorityColor }} />
+                    <select value={editingPriorityColor} onChange={(event) => setEditingPriorityColor(event.target.value)}>
+                      {presetColors.map((color) => (
+                        <option key={color.value} value={color.value}>
+                          {getColorOptionLabel(color.value, colorCategories)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <div className="mini-actions">
+                    <button type="submit">Salva modifica</button>
+                    <button type="button" className="link-btn" onClick={handleCancelEditPriority}>
+                      Annulla
+                    </button>
+                  </div>
+                </form>
+              </details>
+            )}
+
             <details className="card panel-card">
               <summary>Nuova Voce</summary>
               <form className="form-card details-form" onSubmit={handleCreateItem}>
@@ -1548,10 +1648,13 @@ function App() {
                   return (
                     <article key={priority.id} className="progress-card priority-card">
                       <SwipeActionRow
-                        onEdit={() => handleEditPriority(priority.id, priority.title, priority.color)}
+                        onEdit={() => handleStartEditPriority(priority.id, priority.title, priority.color)}
                         onDelete={() => handleDeletePriority(priority.id)}
-                        onDone={() => handleMarkPriorityDone(priority.id)}
-                        onReopen={() => handleReopenPriority(priority.id)}
+                        leftAction={
+                          (categoryProgressMap.get(priority.id) ?? 0) >= 100
+                            ? { label: 'Riapri', onClick: () => handleReopenPriority(priority.id) }
+                            : { label: 'Fatto', onClick: () => handleMarkPriorityDone(priority.id) }
+                        }
                       >
                         <div className="progress-head hierarchy-row row-compact">
                           <div>
@@ -1589,8 +1692,11 @@ function App() {
                             <SwipeActionRow
                               onEdit={() => handleEditItem(item.id, item.title)}
                               onDelete={() => handleDeleteItem(item.id)}
-                              onDone={() => handleMarkItemDone(item.id)}
-                              onReopen={() => handleReopenItem(item.id)}
+                              leftAction={
+                                (itemProgressMap.get(item.id) ?? 0) >= 100
+                                  ? { label: 'Riapri', onClick: () => handleReopenItem(item.id) }
+                                  : { label: 'Fatto', onClick: () => handleMarkItemDone(item.id) }
+                              }
                             >
                               <div className="item-head hierarchy-row row-compact">
                                 <div>
@@ -1612,13 +1718,16 @@ function App() {
                             {expandedItemId === item.id && (
                               <div className="item-actions">
                                 {itemActions.map((action) => (
-                                  <SwipeActionRow
-                                    key={action.id}
-                                    onEdit={() => handleEditAction(action.id, action.title)}
-                                    onDelete={() => handleDeleteAction(action.id)}
-                                    onDone={() => handleMarkActionDone(action.id)}
-                                    onReopen={() => handleReopenAction(action.id)}
-                                  >
+                                <SwipeActionRow
+                                  key={action.id}
+                                  onEdit={() => handleEditAction(action.id, action.title)}
+                                  onDelete={() => handleDeleteAction(action.id)}
+                                  leftAction={
+                                    action.percentComplete >= 100
+                                      ? { label: 'Riapri', onClick: () => handleReopenAction(action.id) }
+                                      : { label: 'Fatto', onClick: () => handleMarkActionDone(action.id) }
+                                  }
+                                >
                                     <div className="action-row action-row-readonly">
                                       <div className="action-main">
                                         <span className="action-topline">
@@ -1791,9 +1900,17 @@ function App() {
                   )}
                   {event.source === 'planest' && (
                     <div className="event-delete-row">
+                      <button type="button" onClick={() => handleStartEditEvent(event)}>
+                        Modifica evento
+                      </button>
                       {event.isRecurring && (
                         <button type="button" onClick={() => void handleDeleteOccurrence(event)}>
                           Elimina occorrenza
+                        </button>
+                      )}
+                      {event.isRecurring && (
+                        <button type="button" onClick={() => void handleDeleteSeriesPartial(event)}>
+                          Elimina da qui in poi
                         </button>
                       )}
                       <button type="button" onClick={() => void handleDeleteSeries(event)}>
@@ -1883,7 +2000,12 @@ function App() {
                   </select>
                 </label>
 
-                <button type="submit">Aggiungi attivita</button>
+                <button type="submit">{editingEventId ? 'Salva modifica evento' : 'Aggiungi attivita'}</button>
+                {editingEventId && (
+                  <button type="button" className="link-btn" onClick={handleCancelEditEvent}>
+                    Annulla modifica
+                  </button>
+                )}
               </form>
             </details>
           </aside>

@@ -20,6 +20,9 @@ type AddEventInput = {
   attachmentDataUrl: string | null;
 };
 
+const toRRuleUtcDateTime = (date: Date): string =>
+  date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
+
 export const usePlanestData = () => {
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [categories, setCategories] = useState<PriorityCategory[]>([]);
@@ -318,6 +321,82 @@ export const usePlanestData = () => {
     [refresh, safeSync],
   );
 
+  const updateEvent = useCallback(
+    async (eventId: string, input: AddEventInput) => {
+      const existing = await db.events.get(eventId);
+      if (!existing) {
+        return;
+      }
+
+      const updated: CalendarEvent = {
+        ...existing,
+        title: input.title,
+        categoryId: input.categoryId,
+        startsAt: input.startsAt,
+        endsAt: input.endsAt,
+        recurrenceRule: input.recurrenceRule,
+        exceptionDates: input.exceptionDates,
+        reminders: input.reminders,
+        mentionUserIds: input.mentionUserIds,
+        color: input.color,
+        colorName: input.colorName,
+        attachmentName: input.attachmentName,
+        attachmentDataUrl: input.attachmentDataUrl,
+        updatedAt: nowIso(),
+      };
+
+      await db.events.put(updated);
+      await enqueueMutation({ table: 'events', op: 'upsert', payload: updated, createdAt: nowIso() });
+      await refresh();
+      void safeSync();
+    },
+    [refresh, safeSync],
+  );
+
+  const trimEventSeries = useCallback(
+    async (eventId: string, fromOccurrenceDateIso: string) => {
+      const existing = await db.events.get(eventId);
+      if (!existing) {
+        return;
+      }
+      if (!existing.recurrenceRule) {
+        await db.events.delete(eventId);
+        await enqueueMutation({ table: 'events', op: 'delete', payload: { id: eventId }, createdAt: nowIso() });
+        await refresh();
+        void safeSync();
+        return;
+      }
+
+      const startDayIso = existing.startsAt.slice(0, 10);
+      if (startDayIso >= fromOccurrenceDateIso) {
+        await db.events.delete(eventId);
+        await enqueueMutation({ table: 'events', op: 'delete', payload: { id: eventId }, createdAt: nowIso() });
+        await refresh();
+        void safeSync();
+        return;
+      }
+
+      const untilDate = new Date(`${fromOccurrenceDateIso}T00:00:00.000Z`);
+      untilDate.setUTCSeconds(untilDate.getUTCSeconds() - 1);
+      const untilToken = toRRuleUtcDateTime(untilDate);
+
+      const baseRule = existing.recurrenceRule.replace(/^RRULE:/, '');
+      const cleaned = baseRule.replace(/;UNTIL=[^;]+/g, '').replace(/;COUNT=[^;]+/g, '');
+      const nextRule = `RRULE:${cleaned};UNTIL=${untilToken}`;
+
+      const updated: CalendarEvent = {
+        ...existing,
+        recurrenceRule: nextRule,
+        updatedAt: nowIso(),
+      };
+      await db.events.put(updated);
+      await enqueueMutation({ table: 'events', op: 'upsert', payload: updated, createdAt: nowIso() });
+      await refresh();
+      void safeSync();
+    },
+    [refresh, safeSync],
+  );
+
   const itemProgressMap = useMemo(() => {
     const map = new Map<string, number>();
 
@@ -446,8 +525,10 @@ export const usePlanestData = () => {
     deleteItem,
     deleteAction,
     addEvent,
+    updateEvent,
     deleteEventSeries,
     deleteEventOccurrence,
+    trimEventSeries,
     syncNow: safeSync,
     refresh,
     usesSupabase: isSupabaseEnabled,
