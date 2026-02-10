@@ -283,8 +283,8 @@ export const usePlanestData = () => {
         continue;
       }
 
-      const total = linkedActions.reduce((sum, action) => sum + action.percentComplete, 0);
-      map.set(item.id, Math.round(total / linkedActions.length));
+      const completed = linkedActions.filter((action) => action.percentComplete >= 100).length;
+      map.set(item.id, Math.round((completed / linkedActions.length) * 100));
     }
 
     return map;
@@ -294,18 +294,19 @@ export const usePlanestData = () => {
     const map = new Map<string, number>();
 
     for (const category of categories) {
-      const linkedItems = items.filter((item) => item.categoryId === category.id);
-      if (linkedItems.length === 0) {
+      const linkedItemIds = items.filter((item) => item.categoryId === category.id).map((item) => item.id);
+      const linkedActions = linkedItemIds.length === 0 ? [] : actions.filter((action) => linkedItemIds.includes(action.itemId));
+      if (linkedActions.length === 0) {
         map.set(category.id, 0);
         continue;
       }
 
-      const total = linkedItems.reduce((sum, item) => sum + (itemProgressMap.get(item.id) ?? 0), 0);
-      map.set(category.id, Math.round(total / linkedItems.length));
+      const completed = linkedActions.filter((action) => action.percentComplete >= 100).length;
+      map.set(category.id, Math.round((completed / linkedActions.length) * 100));
     }
 
     return map;
-  }, [categories, items, itemProgressMap]);
+  }, [actions, categories, items]);
 
   const weeklySummary = useMemo<WeeklySummary>(() => {
     const now = new Date();

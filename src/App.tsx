@@ -258,14 +258,17 @@ const MentionHelper = ({
   </div>
 );
 
-const SwipeDeleteRow = ({
+const SwipeActionRow = ({
   onDelete,
+  onDone,
   children,
 }: {
   onDelete: () => Promise<void> | void;
+  onDone?: () => Promise<void> | void;
   children: ReactNode;
 }) => {
-  const revealWidth = 92;
+  const revealRight = 92;
+  const revealLeft = onDone ? 84 : 0;
   const [offset, setOffset] = useState(0);
   const offsetRef = useRef(0);
   const startXRef = useRef<number | null>(null);
@@ -276,7 +279,7 @@ const SwipeDeleteRow = ({
     offsetRef.current = offset;
   }, [offset]);
 
-  const clampOffset = (value: number) => Math.max(-revealWidth, Math.min(0, value));
+  const clampOffset = (value: number) => Math.max(-revealRight, Math.min(revealLeft, value));
 
   const isInteractiveTarget = (target: EventTarget | null): boolean => {
     if (!(target instanceof HTMLElement)) {
@@ -313,7 +316,15 @@ const SwipeDeleteRow = ({
     }
     draggingRef.current = false;
     startXRef.current = null;
-    setOffset(offsetRef.current <= -revealWidth * 0.45 ? -revealWidth : 0);
+    if (offsetRef.current <= -revealRight * 0.45) {
+      setOffset(-revealRight);
+      return;
+    }
+    if (onDone && offsetRef.current >= revealLeft * 0.45) {
+      setOffset(revealLeft);
+      return;
+    }
+    setOffset(0);
   };
 
   const handleDeleteClick = async () => {
@@ -321,8 +332,21 @@ const SwipeDeleteRow = ({
     setOffset(0);
   };
 
+  const handleDoneClick = async () => {
+    if (!onDone) {
+      return;
+    }
+    await onDone();
+    setOffset(0);
+  };
+
   return (
     <div className="swipe-delete">
+      {onDone && (
+        <button type="button" className="swipe-done-btn" onClick={() => void handleDoneClick()}>
+          Fatto
+        </button>
+      )}
       <button type="button" className="swipe-delete-btn" onClick={() => void handleDeleteClick()}>
         Elimina
       </button>
@@ -420,6 +444,25 @@ function App() {
     await deleteAction(actionId);
   };
 
+  const handleMarkActionDone = async (actionId: string) => {
+    await updateActionProgress(actionId, 100);
+  };
+
+  const handleMarkItemDone = async (itemId: string) => {
+    const pendingActions = actions.filter((action) => action.itemId === itemId && action.percentComplete < 100);
+    for (const action of pendingActions) {
+      await updateActionProgress(action.id, 100);
+    }
+  };
+
+  const handleMarkPriorityDone = async (categoryId: string) => {
+    const linkedItemIds = items.filter((item) => item.categoryId === categoryId).map((item) => item.id);
+    const pendingActions = actions.filter((action) => linkedItemIds.includes(action.itemId) && action.percentComplete < 100);
+    for (const action of pendingActions) {
+      await updateActionProgress(action.id, 100);
+    }
+  };
+
   const [session, setSession] = useState<Session | null>(null);
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
@@ -431,6 +474,7 @@ function App() {
   const [page, setPage] = useState<AppPage>('home');
   const [filterPriority, setFilterPriority] = useState('all');
   const [filterUserId, setFilterUserId] = useState('all');
+  const [priorityActionStatusFilter, setPriorityActionStatusFilter] = useState<'all' | 'open' | 'done'>('all');
 
   const [priorityTitle, setPriorityTitle] = useState('');
   const [priorityOwnerUserId, setPriorityOwnerUserId] = useState('');
@@ -439,7 +483,6 @@ function App() {
 
   const [itemPriorityId, setItemPriorityId] = useState('');
   const [itemTitle, setItemTitle] = useState('');
-  const [itemNote, setItemNote] = useState('');
 
   const [actionItemId, setActionItemId] = useState('');
   const [actionTitle, setActionTitle] = useState('');
@@ -607,6 +650,16 @@ function App() {
       return isItemRelevantToUser(action.itemId);
     });
   }, [actions, filteredItems, filterUserId, isItemRelevantToUser]);
+
+  const priorityPageActions = useMemo(() => {
+    if (priorityActionStatusFilter === 'done') {
+      return filteredActions.filter((action) => action.percentComplete >= 100);
+    }
+    if (priorityActionStatusFilter === 'open') {
+      return filteredActions.filter((action) => action.percentComplete < 100);
+    }
+    return filteredActions;
+  }, [filteredActions, priorityActionStatusFilter]);
 
   const visiblePriorities = useMemo(() => {
     return categories.filter((priority) => {
@@ -930,11 +983,8 @@ function App() {
       return;
     }
 
-    const mergedText = `${itemTitle} ${itemNote}`;
-    const mentionUserIds = parseMentionUserIds(mergedText, effectiveUsers);
-    await addItem(itemPriorityId, itemTitle.trim(), itemNote.trim(), mentionUserIds);
+    await addItem(itemPriorityId, itemTitle.trim(), '', []);
     setItemTitle('');
-    setItemNote('');
   };
 
   const addActionReminder = () => {
@@ -1123,29 +1173,33 @@ function App() {
 
       <section className="card toolbar">
         <div className="toolbar-left">
-          <label>
-            Filtro priorita
-            <select value={filterPriority} onChange={(event) => setFilterPriority(event.target.value)}>
-              <option value="all">Tutte</option>
-              {categories.map((priority) => (
-                <option key={priority.id} value={priority.id}>
-                  {priority.title}
-                </option>
-              ))}
-            </select>
-          </label>
+          {page !== 'priorities' && (
+            <>
+              <label>
+                Filtro priorita
+                <select value={filterPriority} onChange={(event) => setFilterPriority(event.target.value)}>
+                  <option value="all">Tutte</option>
+                  {categories.map((priority) => (
+                    <option key={priority.id} value={priority.id}>
+                      {priority.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
 
-          <label>
-            Filtro utente
-            <select value={filterUserId} onChange={(event) => setFilterUserId(event.target.value)}>
-              <option value="all">Tutti</option>
-              {effectiveUsers.map((user) => (
-                <option key={user.id} value={user.id}>
-                  {user.displayName}
-                </option>
-              ))}
-            </select>
-          </label>
+              <label>
+                Filtro utente
+                <select value={filterUserId} onChange={(event) => setFilterUserId(event.target.value)}>
+                  <option value="all">Tutti</option>
+                  {effectiveUsers.map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {user.displayName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </>
+          )}
 
           {page === 'calendar' && (
             <>
@@ -1292,8 +1346,6 @@ function App() {
                   ))}
                 </select>
                 <input value={itemTitle} onChange={(event) => setItemTitle(event.target.value)} placeholder="Titolo voce" required />
-                <textarea value={itemNote} onChange={(event) => setItemNote(event.target.value)} placeholder="Nota con @NomeUtente" rows={3} />
-                <MentionHelper users={effectiveUsers} onMention={(user) => setItemNote((current) => appendMention(current, user))} />
                 <button type="submit">Aggiungi voce</button>
               </form>
             </details>
@@ -1344,72 +1396,122 @@ function App() {
             </details>
           </div>
 
-          <article className="card">
-            <h2>Piano Priorita</h2>
-            <div className="progress-list">
-              {visiblePriorities.map((priority) => {
-                const priorityItems = filteredItems.filter((item) => item.categoryId === priority.id);
-                return (
-                  <article key={priority.id} className="progress-card">
-                    <SwipeDeleteRow onDelete={() => handleDeletePriority(priority.id)}>
-                      <div className="progress-head hierarchy-row">
-                        <div>
-                          <small className="hierarchy-label">Priorita</small>
-                          <h3>{priority.title}</h3>
-                          <p>
-                            Owner: {priority.owner}
-                            {colorCategories[priority.color] ? ` · ${colorCategories[priority.color]}` : ''}
-                          </p>
-                        </div>
-                        <strong style={{ color: priority.color }}>{categoryProgressMap.get(priority.id) ?? 0}%</strong>
-                      </div>
-                    </SwipeDeleteRow>
-                    <div className="bar">
-                      <span style={{ width: `${categoryProgressMap.get(priority.id) ?? 0}%`, backgroundColor: priority.color }} />
-                    </div>
-
-                    {priorityItems.map((item) => (
-                      <div key={item.id} className="item-block">
-                        <SwipeDeleteRow onDelete={() => handleDeleteItem(item.id)}>
-                          <div className="item-head hierarchy-row">
-                            <div>
-                              <small className="hierarchy-label">Voce</small>
-                              <h4>{item.title}</h4>
-                            </div>
-                            <strong>{itemProgressMap.get(item.id) ?? 0}%</strong>
-                          </div>
-                        </SwipeDeleteRow>
-                        <p>{item.note}</p>
-                        <div className="item-actions">
-                          {filteredActions
-                            .filter((action) => action.itemId === item.id)
-                            .map((action) => (
-                              <SwipeDeleteRow key={action.id} onDelete={() => handleDeleteAction(action.id)}>
-                                <div className="action-row">
-                                  <span>
-                                    <small className="hierarchy-label">Azione</small>
-                                    <span>{action.title}</span>
-                                  </span>
-                                  <input
-                                    type="range"
-                                    min={0}
-                                    max={100}
-                                    value={action.percentComplete}
-                                    onChange={(event) => void updateActionProgress(action.id, Number(event.target.value))}
-                                  />
-                                  <strong>{action.percentComplete}%</strong>
-                                </div>
-                              </SwipeDeleteRow>
-                            ))}
-                        </div>
-                      </div>
+          <div className="stack">
+            <article className="card list-card">
+              <h3>Filtri Piano Priorita</h3>
+              <div className="form-card">
+                <label>
+                  Filtro priorita
+                  <select value={filterPriority} onChange={(event) => setFilterPriority(event.target.value)}>
+                    <option value="all">Tutte</option>
+                    {categories.map((priority) => (
+                      <option key={priority.id} value={priority.id}>
+                        {priority.title}
+                      </option>
                     ))}
-                  </article>
-                );
-              })}
-              {visiblePriorities.length === 0 && <p>Nessuna priorita trovata.</p>}
-            </div>
-          </article>
+                  </select>
+                </label>
+                <label>
+                  Filtro utente
+                  <select value={filterUserId} onChange={(event) => setFilterUserId(event.target.value)}>
+                    <option value="all">Tutti</option>
+                    {effectiveUsers.map((user) => (
+                      <option key={user.id} value={user.id}>
+                        {user.displayName}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Stato azioni
+                  <select
+                    value={priorityActionStatusFilter}
+                    onChange={(event) => setPriorityActionStatusFilter(event.target.value as 'all' | 'open' | 'done')}
+                  >
+                    <option value="all">Tutte</option>
+                    <option value="open">Aperte</option>
+                    <option value="done">Fatte</option>
+                  </select>
+                </label>
+              </div>
+            </article>
+
+            <article className="card">
+              <h2>Piano Priorita</h2>
+              <div className="progress-list">
+                {visiblePriorities.map((priority) => {
+                  const priorityItems = filteredItems.filter((item) => item.categoryId === priority.id);
+                  const priorityActions = priorityPageActions.filter((action) => {
+                    const actionItem = itemMap.get(action.itemId);
+                    return actionItem?.categoryId === priority.id;
+                  });
+                  if (priorityActionStatusFilter !== 'all' && priorityActions.length === 0) {
+                    return null;
+                  }
+
+                  return (
+                    <article key={priority.id} className="progress-card">
+                      <SwipeActionRow onDelete={() => handleDeletePriority(priority.id)} onDone={() => handleMarkPriorityDone(priority.id)}>
+                        <div className="progress-head hierarchy-row">
+                          <div>
+                            <small className="hierarchy-label">Priorita</small>
+                            <h3>{priority.title}</h3>
+                            <p>
+                              Owner: {priority.owner}
+                              {colorCategories[priority.color] ? ` · ${colorCategories[priority.color]}` : ''}
+                            </p>
+                          </div>
+                          <strong style={{ color: priority.color }}>{categoryProgressMap.get(priority.id) ?? 0}%</strong>
+                        </div>
+                      </SwipeActionRow>
+                      <div className="bar">
+                        <span style={{ width: `${categoryProgressMap.get(priority.id) ?? 0}%`, backgroundColor: priority.color }} />
+                      </div>
+
+                      {priorityItems.map((item) => {
+                        const itemActions = priorityPageActions.filter((action) => action.itemId === item.id);
+                        if (priorityActionStatusFilter !== 'all' && itemActions.length === 0) {
+                          return null;
+                        }
+                        return (
+                          <div key={item.id} className="item-block">
+                            <SwipeActionRow onDelete={() => handleDeleteItem(item.id)} onDone={() => handleMarkItemDone(item.id)}>
+                              <div className="item-head hierarchy-row">
+                                <div>
+                                  <small className="hierarchy-label">Voce</small>
+                                  <h4>{item.title}</h4>
+                                </div>
+                                <strong>{itemProgressMap.get(item.id) ?? 0}%</strong>
+                              </div>
+                            </SwipeActionRow>
+                            <div className="item-actions">
+                              {itemActions.map((action) => (
+                                <SwipeActionRow
+                                  key={action.id}
+                                  onDelete={() => handleDeleteAction(action.id)}
+                                  onDone={() => handleMarkActionDone(action.id)}
+                                >
+                                  <div className="action-row action-row-readonly">
+                                    <span>
+                                      <small className="hierarchy-label">Azione</small>
+                                      <span>{action.title}</span>
+                                    </span>
+                                    <small>{action.percentComplete >= 100 ? 'Fatta' : 'Aperta'}</small>
+                                    <strong>{action.percentComplete}%</strong>
+                                  </div>
+                                </SwipeActionRow>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </article>
+                  );
+                })}
+                {visiblePriorities.length === 0 && <p>Nessuna priorita trovata.</p>}
+              </div>
+            </article>
+          </div>
         </section>
       )}
 
