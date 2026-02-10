@@ -799,21 +799,22 @@ a {
   .top-nav {
     width: 100%;
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
-    gap: 0.42rem;
+    gap: 0.34rem;
     margin-top: 0.1rem;
   }
 
   .top-nav button {
     flex: 0 0 auto;
     min-height: 38px;
-    padding: 0.38rem 0.72rem;
-    font-size: 0.9rem;
+    padding: 0.34rem 0.56rem;
+    font-size: 0.88rem;
   }
 
   .user-menu-wrap {
     margin-left: auto;
+    flex: 0 0 auto;
   }
 
   .toolbar {
@@ -839,10 +840,14 @@ a {
     display: flex !important;
     align-items: center;
     justify-content: flex-start;
-    gap: 0.4rem;
+    gap: 0.22rem;
     width: auto !important;
     margin-top: 0.15rem;
     white-space: nowrap;
+  }
+
+  .toolbar-left label.toggle-line {
+    width: max-content;
   }
 
   .toggle-line span {
