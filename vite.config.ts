@@ -8,7 +8,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'apple-touch-icon.svg', 'pwa-192x192.svg', 'pwa-512x512.svg'],
+      includeAssets: ['favicon.png', 'apple-touch-icon.png', '192.png', '512.png'],
       manifest: {
         name: 'Planest',
         short_name: 'Planest',
@@ -18,9 +18,9 @@ export default defineConfig({
         display: 'standalone',
         start_url: '/',
         icons: [
-          { src: 'pwa-192x192.svg', sizes: '192x192', type: 'image/svg+xml', purpose: 'any' },
-          { src: 'pwa-512x512.svg', sizes: '512x512', type: 'image/svg+xml', purpose: 'any maskable' },
-          { src: 'apple-touch-icon.svg', sizes: '180x180', type: 'image/svg+xml' },
+          { src: '192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
+          { src: 'apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
         ],
       },
       workbox: {

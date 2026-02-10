@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@700;800&display=swap');
+
 :root {
   --bg: #f3f6fb;
   --card: rgba(255, 255, 255, 0.9);
@@ -45,6 +47,13 @@ body {
 .brand-block h1 {
   margin: 0;
   font-size: 1.65rem;
+}
+
+.app-title {
+  font-family: 'Plus Jakarta Sans', 'Avenir Next', 'SF Pro Rounded', 'SF Pro Display', 'Segoe UI', sans-serif;
+  text-transform: uppercase;
+  font-weight: 800;
+  letter-spacing: 0.09em;
 }
 
 .brand-block p {
@@ -139,6 +148,15 @@ body {
   padding: 1rem;
   display: grid;
   gap: 0.65rem;
+}
+
+.auth-intro {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #e8edf4;
 }
 
 .link-btn {

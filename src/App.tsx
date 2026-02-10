@@ -944,6 +944,7 @@ function App() {
     return (
       <div className="app-shell">
         <section className="card auth-card">
+          <img className="auth-intro" src="/intro.png" alt="Planest Intro" />
           <h1>Planest Login</h1>
           <p>Accedi per usare la pianificazione famiglia condivisa.</p>
           <form className="form-card" onSubmit={handleAuthSubmit}>
@@ -979,7 +980,7 @@ function App() {
     <div className="app-shell">
       <header className="topbar card">
         <div className="brand-block">
-          <h1>Planest</h1>
+          <h1 className="app-title">Planest</h1>
         </div>
         <nav className="top-nav" aria-label="Main">
           <button type="button" data-active={page === 'home'} onClick={() => setPage('home')}>
