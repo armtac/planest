@@ -352,6 +352,10 @@ body {
   gap: 0.55rem;
 }
 
+.form-card > * {
+  max-width: 100%;
+}
+
 input,
 select,
 textarea,
@@ -644,7 +648,7 @@ button:disabled {
 
 .reminder-row {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 0.4rem;
 }
 
@@ -836,6 +840,14 @@ a {
     width: 100%;
   }
 
+  .form-card button,
+  .form-card input,
+  .form-card select,
+  .form-card textarea {
+    width: 100%;
+    min-width: 0;
+  }
+
   .toggle-line {
     display: flex !important;
     align-items: center;
@@ -854,6 +866,14 @@ a {
     white-space: nowrap;
     font-size: 0.82rem;
     line-height: 1.2;
+  }
+
+  .reminder-row {
+    grid-template-columns: 1fr;
+  }
+
+  .reminder-row button {
+    width: 100%;
   }
 
   .mini-actions {
