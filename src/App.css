@@ -790,27 +790,30 @@ a {
   }
 
   .topbar {
+    flex-direction: column;
+    align-items: stretch;
     gap: 0.6rem;
     padding: 0.62rem 0.62rem;
   }
 
   .top-nav {
     width: 100%;
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.38rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.42rem;
+    margin-top: 0.1rem;
   }
 
   .top-nav button {
-    flex: 1;
+    flex: 0 0 auto;
     min-height: 38px;
-    padding: 0.38rem 0.45rem;
+    padding: 0.38rem 0.72rem;
     font-size: 0.9rem;
   }
 
   .user-menu-wrap {
-    grid-column: 1 / -1;
-    justify-self: end;
+    margin-left: auto;
   }
 
   .toolbar {
@@ -830,6 +833,22 @@ a {
   .toolbar-left select,
   .toolbar-left input {
     width: 100%;
+  }
+
+  .toggle-line {
+    display: flex !important;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.4rem;
+    width: auto !important;
+    margin-top: 0.15rem;
+    white-space: nowrap;
+  }
+
+  .toggle-line span {
+    white-space: nowrap;
+    font-size: 0.82rem;
+    line-height: 1.2;
   }
 
   .mini-actions {
