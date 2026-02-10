@@ -1179,25 +1179,6 @@ function App() {
             </details>
 
             <details className="card panel-card">
-              <summary>Categorie Colore Globali</summary>
-              <div className="details-form color-categories">
-                {presetColors.map((color) => (
-                  <label key={color.value} className="category-row">
-                    <span className="category-label">
-                      <span className="swatch" style={{ backgroundColor: color.value }} />
-                      <span>{color.name}</span>
-                    </span>
-                    <input
-                      value={colorCategories[color.value] ?? ''}
-                      onChange={(event) => setColorCategories((current) => ({ ...current, [color.value]: event.target.value }))}
-                      placeholder="Categoria (es. Sport Bambini)"
-                    />
-                  </label>
-                ))}
-              </div>
-            </details>
-
-            <details className="card panel-card">
               <summary>Nuova Voce</summary>
               <form className="form-card details-form" onSubmit={handleCreateItem}>
                 <select value={itemPriorityId} onChange={(event) => setItemPriorityId(event.target.value)} required>
@@ -1239,6 +1220,25 @@ function App() {
                 />
                 <button type="submit">Aggiungi azione</button>
               </form>
+            </details>
+
+            <details className="card panel-card">
+              <summary>Assegna Categoria colore</summary>
+              <div className="details-form color-categories">
+                {presetColors.map((color) => (
+                  <label key={color.value} className="category-row">
+                    <span className="category-label">
+                      <span className="swatch" style={{ backgroundColor: color.value }} />
+                      <span>{color.name}</span>
+                    </span>
+                    <input
+                      value={colorCategories[color.value] ?? ''}
+                      onChange={(event) => setColorCategories((current) => ({ ...current, [color.value]: event.target.value }))}
+                      placeholder="Categoria (es. Sport Bambini)"
+                    />
+                  </label>
+                ))}
+              </div>
             </details>
           </div>
 
