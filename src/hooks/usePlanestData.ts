@@ -160,6 +160,51 @@ export const usePlanestData = () => {
     [refresh, safeSync],
   );
 
+  const updatePriorityTitle = useCallback(
+    async (categoryId: string, title: string) => {
+      const existing = await db.categories.get(categoryId);
+      if (!existing) {
+        return;
+      }
+      const updated: PriorityCategory = { ...existing, title, updatedAt: nowIso() };
+      await db.categories.put(updated);
+      await enqueueMutation({ table: 'categories', op: 'upsert', payload: updated, createdAt: nowIso() });
+      await refresh();
+      void safeSync();
+    },
+    [refresh, safeSync],
+  );
+
+  const updateItemTitle = useCallback(
+    async (itemId: string, title: string) => {
+      const existing = await db.items.get(itemId);
+      if (!existing) {
+        return;
+      }
+      const updated: PlanItem = { ...existing, title, updatedAt: nowIso() };
+      await db.items.put(updated);
+      await enqueueMutation({ table: 'items', op: 'upsert', payload: updated, createdAt: nowIso() });
+      await refresh();
+      void safeSync();
+    },
+    [refresh, safeSync],
+  );
+
+  const updateActionTitle = useCallback(
+    async (actionId: string, title: string) => {
+      const existing = await db.actions.get(actionId);
+      if (!existing) {
+        return;
+      }
+      const updated: PlanAction = { ...existing, title, updatedAt: nowIso() };
+      await db.actions.put(updated);
+      await enqueueMutation({ table: 'actions', op: 'upsert', payload: updated, createdAt: nowIso() });
+      await refresh();
+      void safeSync();
+    },
+    [refresh, safeSync],
+  );
+
   const deleteAction = useCallback(
     async (actionId: string) => {
       const existing = await db.actions.get(actionId);
@@ -394,6 +439,9 @@ export const usePlanestData = () => {
     addItem,
     addAction,
     updateActionProgress,
+    updatePriorityTitle,
+    updateItemTitle,
+    updateActionTitle,
     deletePriority,
     deleteItem,
     deleteAction,

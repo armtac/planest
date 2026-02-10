@@ -259,16 +259,21 @@ const MentionHelper = ({
 );
 
 const SwipeActionRow = ({
+  onEdit,
   onDelete,
   onDone,
+  onReopen,
   children,
 }: {
+  onEdit?: () => Promise<void> | void;
   onDelete: () => Promise<void> | void;
   onDone?: () => Promise<void> | void;
+  onReopen?: () => Promise<void> | void;
   children: ReactNode;
 }) => {
-  const revealRight = 92;
-  const revealLeft = onDone ? 84 : 0;
+  const actionWidth = 88;
+  const revealRight = onEdit ? actionWidth * 2 : actionWidth;
+  const revealLeft = onDone || onReopen ? actionWidth * 2 : 0;
   const [offset, setOffset] = useState(0);
   const offsetRef = useRef(0);
   const startXRef = useRef<number | null>(null);
@@ -320,7 +325,7 @@ const SwipeActionRow = ({
       setOffset(-revealRight);
       return;
     }
-    if (onDone && offsetRef.current >= revealLeft * 0.45) {
+    if ((onDone || onReopen) && offsetRef.current >= revealLeft * 0.45) {
       setOffset(revealLeft);
       return;
     }
@@ -340,11 +345,37 @@ const SwipeActionRow = ({
     setOffset(0);
   };
 
+  const handleReopenClick = async () => {
+    if (!onReopen) {
+      return;
+    }
+    await onReopen();
+    setOffset(0);
+  };
+
+  const handleEditClick = async () => {
+    if (!onEdit) {
+      return;
+    }
+    await onEdit();
+    setOffset(0);
+  };
+
   return (
     <div className="swipe-delete">
-      {onDone && (
-        <button type="button" className="swipe-done-btn" onClick={() => void handleDoneClick()}>
-          Fatto
+      {(onDone || onReopen) && (
+        <>
+          <button type="button" className="swipe-done-btn" onClick={() => void handleDoneClick()}>
+            Fatto
+          </button>
+          <button type="button" className="swipe-reopen-btn" onClick={() => void handleReopenClick()}>
+            Riapri
+          </button>
+        </>
+      )}
+      {onEdit && (
+        <button type="button" className="swipe-edit-btn" onClick={() => void handleEditClick()}>
+          Modifica
         </button>
       )}
       <button type="button" className="swipe-delete-btn" onClick={() => void handleDeleteClick()}>
@@ -422,6 +453,9 @@ function App() {
     addItem,
     addAction,
     updateActionProgress,
+    updatePriorityTitle,
+    updateItemTitle,
+    updateActionTitle,
     deletePriority,
     deleteItem,
     deleteAction,
@@ -448,10 +482,21 @@ function App() {
     await updateActionProgress(actionId, 100);
   };
 
+  const handleReopenAction = async (actionId: string) => {
+    await updateActionProgress(actionId, 0);
+  };
+
   const handleMarkItemDone = async (itemId: string) => {
     const pendingActions = actions.filter((action) => action.itemId === itemId && action.percentComplete < 100);
     for (const action of pendingActions) {
       await updateActionProgress(action.id, 100);
+    }
+  };
+
+  const handleReopenItem = async (itemId: string) => {
+    const doneActions = actions.filter((action) => action.itemId === itemId && action.percentComplete >= 100);
+    for (const action of doneActions) {
+      await updateActionProgress(action.id, 0);
     }
   };
 
@@ -461,6 +506,38 @@ function App() {
     for (const action of pendingActions) {
       await updateActionProgress(action.id, 100);
     }
+  };
+
+  const handleReopenPriority = async (categoryId: string) => {
+    const linkedItemIds = items.filter((item) => item.categoryId === categoryId).map((item) => item.id);
+    const doneActions = actions.filter((action) => linkedItemIds.includes(action.itemId) && action.percentComplete >= 100);
+    for (const action of doneActions) {
+      await updateActionProgress(action.id, 0);
+    }
+  };
+
+  const handleEditPriority = async (categoryId: string, currentTitle: string) => {
+    const next = window.prompt('Modifica titolo priorita', currentTitle);
+    if (!next || !next.trim()) {
+      return;
+    }
+    await updatePriorityTitle(categoryId, next.trim());
+  };
+
+  const handleEditItem = async (itemId: string, currentTitle: string) => {
+    const next = window.prompt('Modifica titolo voce', currentTitle);
+    if (!next || !next.trim()) {
+      return;
+    }
+    await updateItemTitle(itemId, next.trim());
+  };
+
+  const handleEditAction = async (actionId: string, currentTitle: string) => {
+    const next = window.prompt('Modifica titolo azione', currentTitle);
+    if (!next || !next.trim()) {
+      return;
+    }
+    await updateActionTitle(actionId, next.trim());
   };
 
   const [session, setSession] = useState<Session | null>(null);
@@ -1451,7 +1528,12 @@ function App() {
 
                   return (
                     <article key={priority.id} className="progress-card">
-                      <SwipeActionRow onDelete={() => handleDeletePriority(priority.id)} onDone={() => handleMarkPriorityDone(priority.id)}>
+                      <SwipeActionRow
+                        onEdit={() => handleEditPriority(priority.id, priority.title)}
+                        onDelete={() => handleDeletePriority(priority.id)}
+                        onDone={() => handleMarkPriorityDone(priority.id)}
+                        onReopen={() => handleReopenPriority(priority.id)}
+                      >
                         <div className="progress-head hierarchy-row">
                           <div>
                             <small className="hierarchy-label">Priorita</small>
@@ -1475,7 +1557,12 @@ function App() {
                         }
                         return (
                           <div key={item.id} className="item-block">
-                            <SwipeActionRow onDelete={() => handleDeleteItem(item.id)} onDone={() => handleMarkItemDone(item.id)}>
+                            <SwipeActionRow
+                              onEdit={() => handleEditItem(item.id, item.title)}
+                              onDelete={() => handleDeleteItem(item.id)}
+                              onDone={() => handleMarkItemDone(item.id)}
+                              onReopen={() => handleReopenItem(item.id)}
+                            >
                               <div className="item-head hierarchy-row">
                                 <div>
                                   <small className="hierarchy-label">Voce</small>
@@ -1488,8 +1575,10 @@ function App() {
                               {itemActions.map((action) => (
                                 <SwipeActionRow
                                   key={action.id}
+                                  onEdit={() => handleEditAction(action.id, action.title)}
                                   onDelete={() => handleDeleteAction(action.id)}
                                   onDone={() => handleMarkActionDone(action.id)}
+                                  onReopen={() => handleReopenAction(action.id)}
                                 >
                                   <div className="action-row action-row-readonly">
                                     <span>

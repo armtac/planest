@@ -475,6 +475,7 @@ button:disabled {
   overflow: hidden;
   border-radius: 10px;
   background: #fff;
+  width: 100%;
 }
 
 .swipe-delete-track {
@@ -486,6 +487,8 @@ button:disabled {
 }
 
 .swipe-done-btn,
+.swipe-reopen-btn,
+.swipe-edit-btn,
 .swipe-delete-btn {
   position: absolute;
   top: 0;
@@ -500,13 +503,25 @@ button:disabled {
 
 .swipe-done-btn {
   left: 0;
-  width: 84px;
+  width: 88px;
   background: #16a34a;
+}
+
+.swipe-reopen-btn {
+  left: 88px;
+  width: 88px;
+  background: #0f766e;
+}
+
+.swipe-edit-btn {
+  right: 88px;
+  width: 88px;
+  background: #6b7280;
 }
 
 .swipe-delete-btn {
   right: 0;
-  width: 92px;
+  width: 88px;
   background: #dc2626;
 }
 
@@ -1024,7 +1039,19 @@ a {
   }
 
   .swipe-done-btn {
-    width: 80px;
+    width: 84px;
+    font-size: 0.8rem;
+  }
+
+  .swipe-reopen-btn {
+    left: 84px;
+    width: 84px;
+    font-size: 0.8rem;
+  }
+
+  .swipe-edit-btn {
+    right: 84px;
+    width: 84px;
     font-size: 0.8rem;
   }
 
