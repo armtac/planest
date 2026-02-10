@@ -160,6 +160,90 @@ export const usePlanestData = () => {
     [refresh, safeSync],
   );
 
+  const deleteAction = useCallback(
+    async (actionId: string) => {
+      const existing = await db.actions.get(actionId);
+      if (!existing) {
+        return;
+      }
+
+      const timestamp = nowIso();
+      await db.actions.delete(actionId);
+      await enqueueMutation({ table: 'actions', op: 'delete', payload: { id: actionId }, createdAt: timestamp });
+      await refresh();
+      void safeSync();
+    },
+    [refresh, safeSync],
+  );
+
+  const deleteItem = useCallback(
+    async (itemId: string) => {
+      const existing = await db.items.get(itemId);
+      if (!existing) {
+        return;
+      }
+
+      const linkedActions = await db.actions.where('itemId').equals(itemId).toArray();
+      const timestamp = nowIso();
+
+      if (linkedActions.length > 0) {
+        await db.actions.bulkDelete(linkedActions.map((action) => action.id));
+        for (const action of linkedActions) {
+          await enqueueMutation({ table: 'actions', op: 'delete', payload: { id: action.id }, createdAt: timestamp });
+        }
+      }
+
+      await db.items.delete(itemId);
+      await enqueueMutation({ table: 'items', op: 'delete', payload: { id: itemId }, createdAt: timestamp });
+      await refresh();
+      void safeSync();
+    },
+    [refresh, safeSync],
+  );
+
+  const deletePriority = useCallback(
+    async (categoryId: string) => {
+      const existing = await db.categories.get(categoryId);
+      if (!existing) {
+        return;
+      }
+
+      const linkedItems = await db.items.where('categoryId').equals(categoryId).toArray();
+      const linkedItemIds = linkedItems.map((item) => item.id);
+      const linkedActions = linkedItemIds.length === 0 ? [] : await db.actions.where('itemId').anyOf(linkedItemIds).toArray();
+      const linkedEvents = await db.events.where('categoryId').equals(categoryId).toArray();
+      const timestamp = nowIso();
+
+      if (linkedActions.length > 0) {
+        await db.actions.bulkDelete(linkedActions.map((action) => action.id));
+        for (const action of linkedActions) {
+          await enqueueMutation({ table: 'actions', op: 'delete', payload: { id: action.id }, createdAt: timestamp });
+        }
+      }
+
+      if (linkedItems.length > 0) {
+        await db.items.bulkDelete(linkedItems.map((item) => item.id));
+        for (const item of linkedItems) {
+          await enqueueMutation({ table: 'items', op: 'delete', payload: { id: item.id }, createdAt: timestamp });
+        }
+      }
+
+      if (linkedEvents.length > 0) {
+        for (const event of linkedEvents) {
+          const updated = { ...event, categoryId: null, updatedAt: timestamp };
+          await db.events.put(updated);
+          await enqueueMutation({ table: 'events', op: 'upsert', payload: updated, createdAt: timestamp });
+        }
+      }
+
+      await db.categories.delete(categoryId);
+      await enqueueMutation({ table: 'categories', op: 'delete', payload: { id: categoryId }, createdAt: timestamp });
+      await refresh();
+      void safeSync();
+    },
+    [refresh, safeSync],
+  );
+
   const addEvent = useCallback(
     async (input: AddEventInput) => {
       const timestamp = nowIso();
@@ -309,6 +393,9 @@ export const usePlanestData = () => {
     addItem,
     addAction,
     updateActionProgress,
+    deletePriority,
+    deleteItem,
+    deleteAction,
     addEvent,
     deleteEventSeries,
     deleteEventOccurrence,

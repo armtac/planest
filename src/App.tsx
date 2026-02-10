@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
+import type { ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import {
   addDays,
@@ -257,6 +258,92 @@ const MentionHelper = ({
   </div>
 );
 
+const SwipeDeleteRow = ({
+  onDelete,
+  children,
+}: {
+  onDelete: () => Promise<void> | void;
+  children: ReactNode;
+}) => {
+  const revealWidth = 92;
+  const [offset, setOffset] = useState(0);
+  const offsetRef = useRef(0);
+  const startXRef = useRef<number | null>(null);
+  const baseOffsetRef = useRef(0);
+  const draggingRef = useRef(false);
+
+  useEffect(() => {
+    offsetRef.current = offset;
+  }, [offset]);
+
+  const clampOffset = (value: number) => Math.max(-revealWidth, Math.min(0, value));
+
+  const isInteractiveTarget = (target: EventTarget | null): boolean => {
+    if (!(target instanceof HTMLElement)) {
+      return false;
+    }
+    return Boolean(target.closest('input, textarea, select, button, a'));
+  };
+
+  const handleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (isInteractiveTarget(event.target)) {
+      return;
+    }
+    startXRef.current = event.touches[0]?.clientX ?? null;
+    baseOffsetRef.current = offsetRef.current;
+    draggingRef.current = true;
+  };
+
+  const handleTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (!draggingRef.current || startXRef.current === null) {
+      return;
+    }
+    const currentX = event.touches[0]?.clientX;
+    if (currentX === undefined) {
+      return;
+    }
+    const delta = currentX - startXRef.current;
+    const next = clampOffset(baseOffsetRef.current + delta);
+    setOffset(next);
+  };
+
+  const handleTouchEnd = () => {
+    if (!draggingRef.current) {
+      return;
+    }
+    draggingRef.current = false;
+    startXRef.current = null;
+    setOffset(offsetRef.current <= -revealWidth * 0.45 ? -revealWidth : 0);
+  };
+
+  const handleDeleteClick = async () => {
+    await onDelete();
+    setOffset(0);
+  };
+
+  return (
+    <div className="swipe-delete">
+      <button type="button" className="swipe-delete-btn" onClick={() => void handleDeleteClick()}>
+        Elimina
+      </button>
+      <div
+        className="swipe-delete-track"
+        style={{ transform: `translateX(${offset}px)` }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onClick={() => {
+          if (offsetRef.current !== 0) {
+            setOffset(0);
+          }
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+};
+
 const ReminderEditor = ({
   label,
   inputValue,
@@ -311,12 +398,27 @@ function App() {
     addItem,
     addAction,
     updateActionProgress,
+    deletePriority,
+    deleteItem,
+    deleteAction,
     addEvent,
     deleteEventSeries,
     deleteEventOccurrence,
     syncNow,
     usesSupabase,
   } = usePlanestData();
+
+  const handleDeletePriority = async (categoryId: string) => {
+    await deletePriority(categoryId);
+  };
+
+  const handleDeleteItem = async (itemId: string) => {
+    await deleteItem(itemId);
+  };
+
+  const handleDeleteAction = async (actionId: string) => {
+    await deleteAction(actionId);
+  };
 
   const [session, setSession] = useState<Session | null>(null);
   const [authEmail, setAuthEmail] = useState('');
@@ -1249,42 +1351,55 @@ function App() {
                 const priorityItems = filteredItems.filter((item) => item.categoryId === priority.id);
                 return (
                   <article key={priority.id} className="progress-card">
-                    <div className="progress-head">
-                      <div>
-                        <h3>{priority.title}</h3>
-                        <p>
-                          Owner: {priority.owner}
-                          {colorCategories[priority.color] ? ` · ${colorCategories[priority.color]}` : ''}
-                        </p>
+                    <SwipeDeleteRow onDelete={() => handleDeletePriority(priority.id)}>
+                      <div className="progress-head hierarchy-row">
+                        <div>
+                          <small className="hierarchy-label">Priorita</small>
+                          <h3>{priority.title}</h3>
+                          <p>
+                            Owner: {priority.owner}
+                            {colorCategories[priority.color] ? ` · ${colorCategories[priority.color]}` : ''}
+                          </p>
+                        </div>
+                        <strong style={{ color: priority.color }}>{categoryProgressMap.get(priority.id) ?? 0}%</strong>
                       </div>
-                      <strong style={{ color: priority.color }}>{categoryProgressMap.get(priority.id) ?? 0}%</strong>
-                    </div>
+                    </SwipeDeleteRow>
                     <div className="bar">
                       <span style={{ width: `${categoryProgressMap.get(priority.id) ?? 0}%`, backgroundColor: priority.color }} />
                     </div>
 
                     {priorityItems.map((item) => (
                       <div key={item.id} className="item-block">
-                        <div className="item-head">
-                          <h4>{item.title}</h4>
-                          <strong>{itemProgressMap.get(item.id) ?? 0}%</strong>
-                        </div>
+                        <SwipeDeleteRow onDelete={() => handleDeleteItem(item.id)}>
+                          <div className="item-head hierarchy-row">
+                            <div>
+                              <small className="hierarchy-label">Voce</small>
+                              <h4>{item.title}</h4>
+                            </div>
+                            <strong>{itemProgressMap.get(item.id) ?? 0}%</strong>
+                          </div>
+                        </SwipeDeleteRow>
                         <p>{item.note}</p>
                         <div className="item-actions">
                           {filteredActions
                             .filter((action) => action.itemId === item.id)
                             .map((action) => (
-                              <label key={action.id} className="action-row">
-                                <span>{action.title}</span>
-                                <input
-                                  type="range"
-                                  min={0}
-                                  max={100}
-                                  value={action.percentComplete}
-                                  onChange={(event) => void updateActionProgress(action.id, Number(event.target.value))}
-                                />
-                                <strong>{action.percentComplete}%</strong>
-                              </label>
+                              <SwipeDeleteRow key={action.id} onDelete={() => handleDeleteAction(action.id)}>
+                                <div className="action-row">
+                                  <span>
+                                    <small className="hierarchy-label">Azione</small>
+                                    <span>{action.title}</span>
+                                  </span>
+                                  <input
+                                    type="range"
+                                    min={0}
+                                    max={100}
+                                    value={action.percentComplete}
+                                    onChange={(event) => void updateActionProgress(action.id, Number(event.target.value))}
+                                  />
+                                  <strong>{action.percentComplete}%</strong>
+                                </div>
+                              </SwipeDeleteRow>
                             ))}
                         </div>
                       </div>
