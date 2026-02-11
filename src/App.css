@@ -677,7 +677,7 @@ button:disabled {
   position: relative;
   overflow: hidden;
   border-radius: 10px;
-  background: var(--card);
+  background: var(--panel-bg);
   width: 100%;
 }
 
@@ -685,7 +685,7 @@ button:disabled {
   position: relative;
   z-index: 1;
   transition: transform 150ms ease;
-  background: var(--card);
+  background: var(--panel-bg);
   width: 100%;
 }
 
