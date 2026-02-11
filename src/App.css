@@ -198,6 +198,18 @@ body {
   font-size: 0.78rem;
 }
 
+.toolbar-inline-field {
+  display: grid;
+  grid-template-columns: max-content minmax(180px, 1fr);
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.toolbar-inline-field select,
+.toolbar-inline-field input {
+  width: 100%;
+}
+
 .toggle-line {
   display: inline-flex !important;
   align-items: center;
@@ -948,6 +960,12 @@ a {
 
   .toolbar-left label {
     width: 100%;
+  }
+
+  .toolbar-inline-field {
+    grid-template-columns: 82px minmax(0, 1fr);
+    width: 100%;
+    gap: 0.32rem;
   }
 
   .toolbar-left select,

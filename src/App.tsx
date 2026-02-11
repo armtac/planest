@@ -927,27 +927,44 @@ function App() {
     }
 
     const sentKey = 'planest_sent_reminders';
-    const sentRaw = localStorage.getItem(sentKey);
-    const sent = new Set<string>(sentRaw ? JSON.parse(sentRaw) : []);
-    const now = new Date();
 
-    for (const action of filteredActions) {
-      if (action.percentComplete >= 100) {
-        continue;
-      }
+    const checkReminders = () => {
+      const sentRaw = localStorage.getItem(sentKey);
+      const sent = new Set<string>(sentRaw ? JSON.parse(sentRaw) : []);
+      const now = new Date();
 
-      for (const reminder of action.reminders) {
-        const reminderDate = new Date(reminder);
-        const token = `${action.id}:${reminderDate.toISOString()}`;
-        if (reminderDate <= now && !sent.has(token)) {
-          new Notification('Planest Reminder', { body: `Attivita incompleta: ${action.title}` });
-          sent.add(token);
+      for (const action of filteredActions) {
+        if (action.percentComplete >= 100) {
+          continue;
+        }
+        for (const reminder of action.reminders) {
+          const reminderDate = new Date(reminder);
+          const token = `action:${action.id}:${reminderDate.toISOString()}`;
+          if (reminderDate <= now && !sent.has(token)) {
+            new Notification('Planest Reminder', { body: `Azione incompleta: ${action.title}` });
+            sent.add(token);
+          }
         }
       }
-    }
 
-    localStorage.setItem(sentKey, JSON.stringify(Array.from(sent)));
-  }, [filteredActions, notificationPermission]);
+      for (const event of events) {
+        for (const reminder of event.reminders) {
+          const reminderDate = new Date(reminder);
+          const token = `event:${event.id}:${reminderDate.toISOString()}`;
+          if (reminderDate <= now && !sent.has(token)) {
+            new Notification('Planest Reminder', { body: `Evento: ${event.title}` });
+            sent.add(token);
+          }
+        }
+      }
+
+      localStorage.setItem(sentKey, JSON.stringify(Array.from(sent)));
+    };
+
+    checkReminders();
+    const timerId = window.setInterval(checkReminders, 30_000);
+    return () => window.clearInterval(timerId);
+  }, [events, filteredActions, notificationPermission]);
 
   const requestNotifications = async () => {
     if (typeof window === 'undefined' || !('Notification' in window)) {
@@ -1300,7 +1317,7 @@ function App() {
         <div className="toolbar-left">
           {page !== 'priorities' && (
             <>
-              <label>
+              <label className={page === 'calendar' ? 'toolbar-inline-field' : undefined}>
                 Filtro priorita
                 <select value={filterPriority} onChange={(event) => setFilterPriority(event.target.value)}>
                   <option value="all">Tutte</option>
@@ -1312,7 +1329,7 @@ function App() {
                 </select>
               </label>
 
-              <label>
+              <label className={page === 'calendar' ? 'toolbar-inline-field' : undefined}>
                 Filtro utente
                 <select value={filterUserId} onChange={(event) => setFilterUserId(event.target.value)}>
                   <option value="all">Tutti</option>
@@ -1328,8 +1345,8 @@ function App() {
 
           {page === 'calendar' && (
             <>
-              <label>
-                Cerca calendario
+              <label className="toolbar-inline-field">
+                Cerca
                 <input
                   value={calendarKeyword}
                   onChange={(event) => setCalendarKeyword(event.target.value)}
