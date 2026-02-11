@@ -1316,6 +1316,7 @@ function App() {
     if (event.source !== 'planest') {
       return;
     }
+    setPage('calendar');
     const sourceEvent = events.find((entry) => entry.id === event.baseEventId);
     const recurrence = parseRecurrenceRule(sourceEvent?.recurrenceRule ?? null);
     setEditingEventId(event.baseEventId);
@@ -1334,7 +1335,14 @@ function App() {
     setEventRecurrenceWeekdays(recurrence.weekdays);
     setEventFeedback('Evento caricato in modifica.');
     window.setTimeout(() => {
-      eventFormCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (!eventFormCardRef.current) {
+        return;
+      }
+      eventFormCardRef.current.open = true;
+      eventFormCardRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const titleField = eventFormCardRef.current.querySelector<HTMLInputElement>('input[placeholder="Titolo evento"]');
+      titleField?.focus();
+      titleField?.select();
     }, 30);
   };
 
