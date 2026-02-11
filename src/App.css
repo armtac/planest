@@ -479,6 +479,17 @@ body {
   width: 100%;
 }
 
+.field-inline {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.field-inline input {
+  width: 100%;
+}
+
 input,
 select,
 textarea,
@@ -1129,6 +1140,12 @@ a {
 
   .toolbar-inline-field {
     grid-template-columns: 82px minmax(0, 1fr);
+    width: 100%;
+    gap: 0.32rem;
+  }
+
+  .field-inline {
+    grid-template-columns: 96px minmax(0, 1fr);
     width: 100%;
     gap: 0.32rem;
   }
