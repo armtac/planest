@@ -1404,13 +1404,21 @@ function App() {
           </button>
         </div>
         <nav className="top-nav" aria-label="Main">
-          <button type="button" data-active={page === 'home'} onClick={() => setPage('home')}>
+          <button type="button" className={`nav-link${page === 'home' ? ' active' : ''}`} onClick={() => setPage('home')}>
             Home
           </button>
-          <button type="button" data-active={page === 'calendar'} onClick={() => setPage('calendar')}>
+          <button
+            type="button"
+            className={`nav-link${page === 'calendar' ? ' active' : ''}`}
+            onClick={() => setPage('calendar')}
+          >
             Calendario
           </button>
-          <button type="button" data-active={page === 'priorities'} onClick={() => setPage('priorities')}>
+          <button
+            type="button"
+            className={`nav-link${page === 'priorities' ? ' active' : ''}`}
+            onClick={() => setPage('priorities')}
+          >
             Priorita
           </button>
           {usesSupabase && (
@@ -1546,7 +1554,7 @@ function App() {
       {page === 'priorities' && (
         <section className="page-grid priorities-grid">
           <div className="stack">
-            <details className="card panel-card" open>
+            <details className="card panel-card">
               <summary>Nuova Priorita</summary>
               <form className="form-card details-form" onSubmit={handleCreatePriority}>
                 <input value={priorityTitle} onChange={(event) => setPriorityTitle(event.target.value)} placeholder="Nome priorita" required />
@@ -1658,44 +1666,41 @@ function App() {
           </div>
 
           <div className="stack">
-            <article className="card list-card" ref={selectedDayCardRef}>
-              <h3>Filtri Piano Priorita</h3>
-              <div className="form-card">
-                <label>
-                  Filtro priorita
-                  <select value={filterPriority} onChange={(event) => setFilterPriority(event.target.value)}>
-                    <option value="all">Tutte</option>
-                    {categories.map((priority) => (
-                      <option key={priority.id} value={priority.id}>
-                        {priority.title}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Filtro utente
-                  <select value={filterUserId} onChange={(event) => setFilterUserId(event.target.value)}>
-                    <option value="all">Tutti</option>
-                    {effectiveUsers.map((user) => (
-                      <option key={user.id} value={user.id}>
-                        {user.displayName}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Stato azioni
-                  <select
-                    value={priorityActionStatusFilter}
-                    onChange={(event) => setPriorityActionStatusFilter(event.target.value as 'all' | 'open' | 'done')}
-                  >
-                    <option value="all">Tutte</option>
-                    <option value="open">Aperte</option>
-                    <option value="done">Fatte</option>
-                  </select>
-                </label>
+            <details className="card panel-card">
+              <summary>Filtri Piano Priorita</summary>
+              <div className="details-form priority-filters-grid">
+                <label htmlFor="priority-filter-priorita">Filtro priorita</label>
+                <select id="priority-filter-priorita" value={filterPriority} onChange={(event) => setFilterPriority(event.target.value)}>
+                  <option value="all">Tutte</option>
+                  {categories.map((priority) => (
+                    <option key={priority.id} value={priority.id}>
+                      {priority.title}
+                    </option>
+                  ))}
+                </select>
+
+                <label htmlFor="priority-filter-utente">Filtro utente</label>
+                <select id="priority-filter-utente" value={filterUserId} onChange={(event) => setFilterUserId(event.target.value)}>
+                  <option value="all">Tutti</option>
+                  {effectiveUsers.map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {user.displayName}
+                    </option>
+                  ))}
+                </select>
+
+                <label htmlFor="priority-filter-stato">Stato azioni</label>
+                <select
+                  id="priority-filter-stato"
+                  value={priorityActionStatusFilter}
+                  onChange={(event) => setPriorityActionStatusFilter(event.target.value as 'all' | 'open' | 'done')}
+                >
+                  <option value="all">Tutte</option>
+                  <option value="open">Aperte</option>
+                  <option value="done">Fatte</option>
+                </select>
               </div>
-            </article>
+            </details>
 
             <article className="card">
               <h2>Piano Priorita</h2>
@@ -1982,7 +1987,7 @@ function App() {
               {selectedDayEvents.length === 0 && <p>Nessuna attivita nel giorno.</p>}
             </article>
 
-            <details className="card panel-card" open ref={eventFormCardRef}>
+            <details className="card panel-card" ref={eventFormCardRef}>
               <summary>Nuovo Evento Calendario</summary>
               <form className="form-card details-form" onSubmit={handleCreateEvent}>
                 <input value={eventTitle} onChange={(event) => setEventTitle(event.target.value)} placeholder="Titolo evento" required />
