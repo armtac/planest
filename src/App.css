@@ -470,6 +470,15 @@ body {
   max-width: 100%;
 }
 
+.field-stack {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.field-stack input {
+  width: 100%;
+}
+
 input,
 select,
 textarea,

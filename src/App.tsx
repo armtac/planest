@@ -2030,11 +2030,11 @@ function App() {
                   ))}
                 </select>
 
-                <label>
+                <label className="field-stack">
                   Inizio Evento
                   <input type="datetime-local" value={eventStartsAt} onChange={(event) => handleEventStartChange(event.target.value)} required />
                 </label>
-                <label>
+                <label className="field-stack">
                   Fine Evento
                   <input type="datetime-local" value={eventEndsAt} onChange={(event) => setEventEndsAt(event.target.value)} required />
                 </label>
