@@ -1040,6 +1040,64 @@ function App() {
     return () => window.clearInterval(timerId);
   }, [events, filteredActions, notificationPermission]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined' || !session?.user.id) {
+      return;
+    }
+
+    const currentUserId = session.user.id;
+    const sentKey = `planest_mention_notifications_${currentUserId}`;
+    const seededKey = `planest_mention_seeded_${currentUserId}`;
+    const canNotify = notificationPermission === 'granted' && 'Notification' in window;
+
+    const sentRaw = localStorage.getItem(sentKey);
+    const sent = new Set<string>(sentRaw ? JSON.parse(sentRaw) : []);
+
+    const mentionTokens: Array<{ token: string; title: string; body: string }> = [];
+    for (const action of actions) {
+      if (action.mentionUserIds.includes(currentUserId)) {
+        mentionTokens.push({
+          token: `action:${action.id}:${action.updatedAt}`,
+          title: 'Sei stato taggato',
+          body: `Azione: ${action.title}`,
+        });
+      }
+    }
+    for (const event of events) {
+      if (event.mentionUserIds.includes(currentUserId)) {
+        mentionTokens.push({
+          token: `event:${event.id}:${event.updatedAt}`,
+          title: 'Sei stato taggato',
+          body: `Evento: ${event.title}`,
+        });
+      }
+    }
+
+    if (localStorage.getItem(seededKey) !== '1') {
+      for (const mention of mentionTokens) {
+        sent.add(mention.token);
+      }
+      localStorage.setItem(seededKey, '1');
+      localStorage.setItem(sentKey, JSON.stringify(Array.from(sent)));
+      return;
+    }
+
+    if (canNotify) {
+      for (const mention of mentionTokens) {
+        if (!sent.has(mention.token)) {
+          new Notification(mention.title, { body: mention.body });
+          sent.add(mention.token);
+        }
+      }
+    } else {
+      for (const mention of mentionTokens) {
+        sent.add(mention.token);
+      }
+    }
+
+    localStorage.setItem(sentKey, JSON.stringify(Array.from(sent)));
+  }, [actions, events, notificationPermission, session?.user.id]);
+
   const requestNotifications = async () => {
     if (typeof window === 'undefined' || !('Notification' in window)) {
       setNotificationPermission('unsupported');
@@ -1972,8 +2030,14 @@ function App() {
                   ))}
                 </select>
 
-                <input type="datetime-local" value={eventStartsAt} onChange={(event) => handleEventStartChange(event.target.value)} required />
-                <input type="datetime-local" value={eventEndsAt} onChange={(event) => setEventEndsAt(event.target.value)} required />
+                <label>
+                  Inizio Evento
+                  <input type="datetime-local" value={eventStartsAt} onChange={(event) => handleEventStartChange(event.target.value)} required />
+                </label>
+                <label>
+                  Fine Evento
+                  <input type="datetime-local" value={eventEndsAt} onChange={(event) => setEventEndsAt(event.target.value)} required />
+                </label>
 
                 <select value={eventRecurrence} onChange={(event) => setEventRecurrence(event.target.value)}>
                   <option value="none">Nessuna ricorrenza</option>

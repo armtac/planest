@@ -488,6 +488,31 @@ textarea {
   color: var(--ink);
 }
 
+input[type='file'] {
+  background: var(--field-bg);
+  color: var(--ink);
+}
+
+input[type='file']::file-selector-button {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--field-bg), #233041 35%);
+  color: var(--ink);
+  padding: 0.35rem 0.6rem;
+  margin-right: 0.5rem;
+  cursor: pointer;
+}
+
+input[type='file']::-webkit-file-upload-button {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--field-bg), #233041 35%);
+  color: var(--ink);
+  padding: 0.35rem 0.6rem;
+  margin-right: 0.5rem;
+  cursor: pointer;
+}
+
 input::placeholder,
 textarea::placeholder {
   color: color-mix(in srgb, var(--subtle), transparent 10%);
