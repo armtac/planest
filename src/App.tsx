@@ -258,6 +258,19 @@ const appendMention = (text: string, user: UserProfile): string => {
   return `${text}${suffix}@${user.displayName} `;
 };
 
+const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined;
+
+const urlBase64ToUint8Array = (base64String: string): ArrayBuffer => {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let index = 0; index < rawData.length; index += 1) {
+    outputArray[index] = rawData.charCodeAt(index);
+  }
+  return outputArray.buffer;
+};
+
 const MentionHelper = ({
   users,
   onMention,
@@ -597,11 +610,30 @@ function App() {
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | 'unsupported'>(
     typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'unsupported',
   );
+  const [pendingNotificationEventId, setPendingNotificationEventId] = useState<string | null>(null);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [showProfileEmail, setShowProfileEmail] = useState(false);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
   const selectedDayCardRef = useRef<HTMLElement | null>(null);
   const eventFormCardRef = useRef<HTMLDetailsElement | null>(null);
+
+  const navigateToCalendarFromNotification = useCallback((dateIso?: string | null, eventId?: string | null) => {
+    setPage('calendar');
+    if (dateIso) {
+      const normalized = dateIso.slice(0, 10);
+      const selected = new Date(`${normalized}T00:00:00`);
+      if (!Number.isNaN(selected.getTime())) {
+        setCalendarDate(selected);
+        setSelectedCalendarDate(selected);
+      }
+    }
+    if (eventId) {
+      setPendingNotificationEventId(eventId);
+    }
+    window.setTimeout(() => {
+      selectedDayCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 80);
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -648,6 +680,37 @@ function App() {
     window.addEventListener('mousedown', onClickOutside);
     return () => window.removeEventListener('mousedown', onClickOutside);
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    const pageParam = params.get('page');
+    const dateParam = params.get('date');
+    const eventParam = params.get('eventId');
+    if (pageParam === 'calendar' || dateParam || eventParam) {
+      navigateToCalendarFromNotification(dateParam, eventParam);
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [navigateToCalendarFromNotification]);
+
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) {
+      return;
+    }
+    const onMessage = (event: MessageEvent) => {
+      const data = event.data as { type?: string; payload?: { page?: string; date?: string; eventId?: string } };
+      if (data?.type !== 'PLANEST_NAVIGATE') {
+        return;
+      }
+      if (data.payload?.page === 'calendar' || data.payload?.date || data.payload?.eventId) {
+        navigateToCalendarFromNotification(data.payload?.date ?? null, data.payload?.eventId ?? null);
+      }
+    };
+    navigator.serviceWorker.addEventListener('message', onMessage);
+    return () => navigator.serviceWorker.removeEventListener('message', onMessage);
+  }, [navigateToCalendarFromNotification]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -1001,8 +1064,7 @@ function App() {
             const notification = new Notification('Planest Reminder', { body: `Evento: ${event.title}` });
             notification.onclick = () => {
               window.focus();
-              setPage('calendar');
-              selectCalendarDay(new Date(event.startsAt));
+              navigateToCalendarFromNotification(event.startsAt.slice(0, 10), event.id);
             };
             sent.add(token);
           }
@@ -1015,7 +1077,7 @@ function App() {
     checkReminders();
     const timerId = window.setInterval(checkReminders, 30_000);
     return () => window.clearInterval(timerId);
-  }, [events, filteredActions, notificationPermission]);
+  }, [events, filteredActions, navigateToCalendarFromNotification, notificationPermission]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !session?.user.id) {
@@ -1075,6 +1137,64 @@ function App() {
     localStorage.setItem(sentKey, JSON.stringify(Array.from(sent)));
   }, [actions, events, notificationPermission, session?.user.id]);
 
+  const ensurePushSubscription = useCallback(async () => {
+    if (!supabase || !session?.user.id) {
+      return;
+    }
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      return;
+    }
+    if (notificationPermission !== 'granted' || !vapidPublicKey) {
+      return;
+    }
+
+    const registration = await navigator.serviceWorker.ready;
+    let subscription = await registration.pushManager.getSubscription();
+    if (!subscription) {
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+      });
+    }
+
+    const serialized = subscription.toJSON();
+    if (!serialized.endpoint || !serialized.keys?.p256dh || !serialized.keys?.auth) {
+      return;
+    }
+
+    await supabase.from('push_subscriptions').upsert(
+      {
+        user_id: session.user.id,
+        endpoint: serialized.endpoint,
+        p256dh: serialized.keys.p256dh,
+        auth: serialized.keys.auth,
+        user_agent: navigator.userAgent,
+        is_active: true,
+        last_seen_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'endpoint' },
+    );
+  }, [notificationPermission, session?.user.id]);
+
+  useEffect(() => {
+    void ensurePushSubscription();
+  }, [ensurePushSubscription]);
+
+  useEffect(() => {
+    if (!pendingNotificationEventId) {
+      return;
+    }
+    const match = selectedDayEvents.find(
+      (entry) => entry.baseEventId === pendingNotificationEventId || entry.id === pendingNotificationEventId,
+    );
+    if (!match) {
+      return;
+    }
+    setExpandedDayEventId(match.id);
+    setPendingNotificationEventId(null);
+  }, [pendingNotificationEventId, selectedDayEvents]);
+
   const requestNotifications = async () => {
     if (typeof window === 'undefined' || !('Notification' in window)) {
       setNotificationPermission('unsupported');
@@ -1082,6 +1202,9 @@ function App() {
     }
     const permission = await Notification.requestPermission();
     setNotificationPermission(permission);
+    if (permission === 'granted') {
+      await ensurePushSubscription();
+    }
   };
 
   const handleAuthSubmit = async (event: FormEvent) => {

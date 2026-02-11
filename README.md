@@ -70,6 +70,27 @@ cp .env.example .env
 
 Se le variabili non sono impostate, Planest funziona in modalita locale offline.
 
+## Push reminder reali (PWA)
+
+Per avere notifiche push vere (anche con app in background), usa Supabase Edge Functions:
+
+1. Genera VAPID keys (una volta sola), ad esempio con `web-push`.
+2. Frontend env (`.env`):
+   - `VITE_VAPID_PUBLIC_KEY=...`
+3. Supabase secrets per Edge Function:
+   - `VAPID_PUBLIC_KEY`
+   - `VAPID_PRIVATE_KEY`
+   - `VAPID_SUBJECT` (es. `mailto:you@example.com`)
+   - `CRON_SECRET` (consigliato)
+4. Esegui `supabase/schema.sql` aggiornato (crea `push_subscriptions` e `push_dispatch_log`).
+5. Deploy function:
+   - `supabase functions deploy send-reminders`
+6. Schedula chiamata ogni minuto (Cron + pg_net) verso:
+   - `/functions/v1/send-reminders`
+   - header `x-cron-secret: <CRON_SECRET>`
+
+La function invia push dei reminder evento e, al click, l'app apre Calendario sul giorno/evento.
+
 ## Note MVP
 
 - Le notifiche browser funzionano se l'utente concede permessi.

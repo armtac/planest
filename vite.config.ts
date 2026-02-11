@@ -7,6 +7,9 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
       registerType: 'autoUpdate',
       includeAssets: ['favicon.png', 'apple-touch-icon.png', '192.png', '512.png'],
       manifest: {
@@ -23,7 +26,7 @@ export default defineConfig({
           { src: 'apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
         ],
       },
-      workbox: {
+      injectManifest: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico,json}'],
       },
     }),

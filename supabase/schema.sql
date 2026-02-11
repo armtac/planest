@@ -53,6 +53,27 @@ create table if not exists events (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists push_subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  endpoint text not null unique,
+  p256dh text not null,
+  auth text not null,
+  user_agent text,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  last_seen_at timestamptz not null default now()
+);
+
+create table if not exists push_dispatch_log (
+  dispatch_key text primary key,
+  user_id uuid references auth.users(id) on delete cascade,
+  event_id uuid references events(id) on delete cascade,
+  reminder_at timestamptz not null,
+  sent_at timestamptz not null default now()
+);
+
 alter table profiles add column if not exists email text;
 alter table profiles add column if not exists display_name text;
 alter table categories add column if not exists owner_user_id uuid references profiles(id) on delete set null;
@@ -63,6 +84,9 @@ alter table events add column if not exists exception_dates text[] not null defa
 alter table events add column if not exists mention_user_ids uuid[] not null default '{}';
 alter table events add column if not exists color_name text;
 alter table events add column if not exists description text not null default '';
+alter table push_subscriptions add column if not exists user_agent text;
+alter table push_subscriptions add column if not exists is_active boolean not null default true;
+alter table push_subscriptions add column if not exists last_seen_at timestamptz not null default now();
 
 do $$
 begin
@@ -119,6 +143,7 @@ alter table profiles enable row level security;
 alter table categories enable row level security;
 alter table actions enable row level security;
 alter table events enable row level security;
+alter table push_subscriptions enable row level security;
 
 -- Family-shared workspace: authenticated users can read/write all planning data.
 do $$
@@ -145,5 +170,26 @@ begin
 
   if not exists (select 1 from pg_policies where policyname = 'authenticated_all_events') then
     create policy authenticated_all_events on events for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+  end if;
+
+  if not exists (select 1 from pg_policies where policyname = 'self_read_push_subscriptions') then
+    create policy self_read_push_subscriptions on push_subscriptions for select
+    using (auth.uid() = user_id);
+  end if;
+
+  if not exists (select 1 from pg_policies where policyname = 'self_insert_push_subscriptions') then
+    create policy self_insert_push_subscriptions on push_subscriptions for insert
+    with check (auth.uid() = user_id);
+  end if;
+
+  if not exists (select 1 from pg_policies where policyname = 'self_update_push_subscriptions') then
+    create policy self_update_push_subscriptions on push_subscriptions for update
+    using (auth.uid() = user_id)
+    with check (auth.uid() = user_id);
+  end if;
+
+  if not exists (select 1 from pg_policies where policyname = 'self_delete_push_subscriptions') then
+    create policy self_delete_push_subscriptions on push_subscriptions for delete
+    using (auth.uid() = user_id);
   end if;
 end $$;
