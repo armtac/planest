@@ -450,24 +450,19 @@ function App() {
   const {
     profiles,
     categories,
-    items,
     actions,
     events,
-    itemProgressMap,
     categoryProgressMap,
     weeklySummary,
     incompleteWithDueDate,
     isSyncing,
     lastSyncAt,
     addCategory,
-    addItem,
     addAction,
     updateActionProgress,
     updatePriorityMeta,
-    updateItemTitle,
     updateActionTitle,
     deletePriority,
-    deleteItem,
     deleteAction,
     addEvent,
     updateEvent,
@@ -482,10 +477,6 @@ function App() {
     await deletePriority(categoryId);
   };
 
-  const handleDeleteItem = async (itemId: string) => {
-    await deleteItem(itemId);
-  };
-
   const handleDeleteAction = async (actionId: string) => {
     await deleteAction(actionId);
   };
@@ -498,31 +489,15 @@ function App() {
     await updateActionProgress(actionId, 0);
   };
 
-  const handleMarkItemDone = async (itemId: string) => {
-    const pendingActions = actions.filter((action) => action.itemId === itemId && action.percentComplete < 100);
-    for (const action of pendingActions) {
-      await updateActionProgress(action.id, 100);
-    }
-  };
-
-  const handleReopenItem = async (itemId: string) => {
-    const doneActions = actions.filter((action) => action.itemId === itemId && action.percentComplete >= 100);
-    for (const action of doneActions) {
-      await updateActionProgress(action.id, 0);
-    }
-  };
-
   const handleMarkPriorityDone = async (categoryId: string) => {
-    const linkedItemIds = items.filter((item) => item.categoryId === categoryId).map((item) => item.id);
-    const pendingActions = actions.filter((action) => linkedItemIds.includes(action.itemId) && action.percentComplete < 100);
+    const pendingActions = actions.filter((action) => action.categoryId === categoryId && action.percentComplete < 100);
     for (const action of pendingActions) {
       await updateActionProgress(action.id, 100);
     }
   };
 
   const handleReopenPriority = async (categoryId: string) => {
-    const linkedItemIds = items.filter((item) => item.categoryId === categoryId).map((item) => item.id);
-    const doneActions = actions.filter((action) => linkedItemIds.includes(action.itemId) && action.percentComplete >= 100);
+    const doneActions = actions.filter((action) => action.categoryId === categoryId && action.percentComplete >= 100);
     for (const action of doneActions) {
       await updateActionProgress(action.id, 0);
     }
@@ -553,14 +528,6 @@ function App() {
     setEditingPriorityTitle('');
   };
 
-  const handleEditItem = async (itemId: string, currentTitle: string) => {
-    const next = window.prompt('Modifica titolo voce', currentTitle);
-    if (!next || !next.trim()) {
-      return;
-    }
-    await updateItemTitle(itemId, next.trim());
-  };
-
   const handleEditAction = async (actionId: string, currentTitle: string) => {
     const next = window.prompt('Modifica titolo azione', currentTitle);
     if (!next || !next.trim()) {
@@ -582,7 +549,6 @@ function App() {
   const [filterUserId, setFilterUserId] = useState('all');
   const [priorityActionStatusFilter, setPriorityActionStatusFilter] = useState<'all' | 'open' | 'done'>('all');
   const [expandedPriorityId, setExpandedPriorityId] = useState<string | null>(null);
-  const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
 
   const [priorityTitle, setPriorityTitle] = useState('');
   const [priorityOwnerUserId, setPriorityOwnerUserId] = useState('');
@@ -592,10 +558,7 @@ function App() {
   const [editingPriorityTitle, setEditingPriorityTitle] = useState('');
   const [editingPriorityColor, setEditingPriorityColor] = useState<string>(presetColors[0].value);
 
-  const [itemPriorityId, setItemPriorityId] = useState('');
-  const [itemTitle, setItemTitle] = useState('');
-
-  const [actionItemId, setActionItemId] = useState('');
+  const [actionPriorityId, setActionPriorityId] = useState('');
   const [actionTitle, setActionTitle] = useState('');
   const [actionDueDate, setActionDueDate] = useState('');
   const [actionReminderInput, setActionReminderInput] = useState('');
@@ -708,7 +671,6 @@ function App() {
   }, [effectiveUsers, priorityOwnerUserId, session?.user.id]);
 
   const categoryMap = useMemo(() => new Map(categories.map((category) => [category.id, category])), [categories]);
-  const itemMap = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
 
   const isCategoryRelevantToUser = useCallback(
     (categoryId: string): boolean => {
@@ -721,36 +683,9 @@ function App() {
     [categoryMap, filterUserId],
   );
 
-  const isItemRelevantToUser = useCallback(
-    (itemId: string): boolean => {
-      if (filterUserId === 'all') {
-        return true;
-      }
-      const item = itemMap.get(itemId);
-      if (!item) {
-        return false;
-      }
-      if (item.mentionUserIds.includes(filterUserId)) {
-        return true;
-      }
-      return isCategoryRelevantToUser(item.categoryId);
-    },
-    [filterUserId, isCategoryRelevantToUser, itemMap],
-  );
-
-  const filteredItems = useMemo(() => {
-    return items.filter((item) => {
-      if (filterPriority !== 'all' && item.categoryId !== filterPriority) {
-        return false;
-      }
-      return isItemRelevantToUser(item.id);
-    });
-  }, [filterPriority, isItemRelevantToUser, items]);
-
   const filteredActions = useMemo(() => {
-    const validItemIds = new Set(filteredItems.map((item) => item.id));
     return actions.filter((action) => {
-      if (!validItemIds.has(action.itemId)) {
+      if (filterPriority !== 'all' && action.categoryId !== filterPriority) {
         return false;
       }
       if (filterUserId === 'all') {
@@ -759,9 +694,9 @@ function App() {
       if (action.mentionUserIds.includes(filterUserId)) {
         return true;
       }
-      return isItemRelevantToUser(action.itemId);
+      return isCategoryRelevantToUser(action.categoryId);
     });
-  }, [actions, filteredItems, filterUserId, isItemRelevantToUser]);
+  }, [actions, filterPriority, filterUserId, isCategoryRelevantToUser]);
 
   const priorityPageActions = useMemo(() => {
     if (priorityActionStatusFilter === 'done') {
@@ -779,15 +714,14 @@ function App() {
         return false;
       }
       if (filterUserId !== 'all' && priority.ownerUserId !== filterUserId) {
-        const hasRelatedItem = items.some(
-          (item) => item.categoryId === priority.id && item.mentionUserIds.includes(filterUserId),
+        const hasRelatedAction = actions.some(
+          (action) => action.categoryId === priority.id && action.mentionUserIds.includes(filterUserId),
         );
-        const hasRelatedAction = actions.some((action) => action.mentionUserIds.includes(filterUserId));
-        return hasRelatedItem || hasRelatedAction;
+        return hasRelatedAction;
       }
       return true;
     });
-  }, [actions, categories, filterPriority, filterUserId, items]);
+  }, [actions, categories, filterPriority, filterUserId]);
 
   const monthGridDays = useMemo(() => {
     const gridStart = startOfWeek(startOfMonth(calendarDate), { weekStartsOn: 1 });
@@ -963,9 +897,9 @@ function App() {
         if (action.mentionUserIds.includes(filterUserId)) {
           return true;
         }
-        return isItemRelevantToUser(action.itemId);
+        return isCategoryRelevantToUser(action.categoryId);
       }),
-    [filterUserId, incompleteWithDueDate, isItemRelevantToUser],
+    [filterUserId, incompleteWithDueDate, isCategoryRelevantToUser],
   );
 
   const overdueActions = useMemo(
@@ -1089,16 +1023,6 @@ function App() {
     setPriorityTitle('');
   };
 
-  const handleCreateItem = async (event: FormEvent) => {
-    event.preventDefault();
-    if (!itemPriorityId || !itemTitle.trim()) {
-      return;
-    }
-
-    await addItem(itemPriorityId, itemTitle.trim(), '', []);
-    setItemTitle('');
-  };
-
   const addActionReminder = () => {
     const iso = toIsoFromDateTimeLocal(actionReminderInput);
     if (!iso) {
@@ -1114,12 +1038,12 @@ function App() {
 
   const handleCreateAction = async (event: FormEvent) => {
     event.preventDefault();
-    if (!actionItemId || !actionTitle.trim()) {
+    if (!actionPriorityId || !actionTitle.trim()) {
       return;
     }
 
     const mentionUserIds = parseMentionUserIds(actionTitle, effectiveUsers);
-    await addAction(actionItemId, actionTitle.trim(), toIsoFromDateTimeLocal(actionDueDate), actionReminderList, mentionUserIds);
+    await addAction(actionPriorityId, actionTitle.trim(), toIsoFromDateTimeLocal(actionDueDate), actionReminderList, mentionUserIds);
 
     setActionTitle('');
     setActionDueDate('');
@@ -1531,29 +1455,13 @@ function App() {
             )}
 
             <details className="card panel-card">
-              <summary>Nuova Voce</summary>
-              <form className="form-card details-form" onSubmit={handleCreateItem}>
-                <select value={itemPriorityId} onChange={(event) => setItemPriorityId(event.target.value)} required>
+              <summary>Nuova Azione</summary>
+              <form className="form-card details-form" onSubmit={handleCreateAction}>
+                <select value={actionPriorityId} onChange={(event) => setActionPriorityId(event.target.value)} required>
                   <option value="">Seleziona priorita</option>
                   {categories.map((priority) => (
                     <option key={priority.id} value={priority.id}>
                       {priority.title}
-                    </option>
-                  ))}
-                </select>
-                <input value={itemTitle} onChange={(event) => setItemTitle(event.target.value)} placeholder="Titolo voce" required />
-                <button type="submit">Aggiungi voce</button>
-              </form>
-            </details>
-
-            <details className="card panel-card">
-              <summary>Nuova Azione</summary>
-              <form className="form-card details-form" onSubmit={handleCreateAction}>
-                <select value={actionItemId} onChange={(event) => setActionItemId(event.target.value)} required>
-                  <option value="">Seleziona voce</option>
-                  {items.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.title}
                     </option>
                   ))}
                 </select>
@@ -1636,11 +1544,7 @@ function App() {
               <h2>Piano Priorita</h2>
               <div className="progress-list">
                 {visiblePriorities.map((priority) => {
-                  const priorityItems = filteredItems.filter((item) => item.categoryId === priority.id);
-                  const priorityActions = priorityPageActions.filter((action) => {
-                    const actionItem = itemMap.get(action.itemId);
-                    return actionItem?.categoryId === priority.id;
-                  });
+                  const priorityActions = priorityPageActions.filter((action) => action.categoryId === priority.id);
                   if (priorityActionStatusFilter !== 'all' && priorityActions.length === 0) {
                     return null;
                   }
@@ -1670,10 +1574,7 @@ function App() {
                             <button
                               type="button"
                               className="expand-btn"
-                              onClick={() => {
-                                setExpandedPriorityId((current) => (current === priority.id ? null : priority.id));
-                                setExpandedItemId(null);
-                              }}
+                              onClick={() => setExpandedPriorityId((current) => (current === priority.id ? null : priority.id))}
                             >
                               {expandedPriorityId === priority.id ? '▾' : '▸'}
                             </button>
@@ -1681,70 +1582,33 @@ function App() {
                         </div>
                       </SwipeActionRow>
 
-                      {expandedPriorityId === priority.id &&
-                        priorityItems.map((item) => {
-                        const itemActions = priorityPageActions.filter((action) => action.itemId === item.id);
-                        if (priorityActionStatusFilter !== 'all' && itemActions.length === 0) {
-                          return null;
-                        }
-                        return (
-                          <div key={item.id} className="item-block">
+                      {expandedPriorityId === priority.id && (
+                        <div className="item-actions">
+                          {priorityActions.map((action) => (
                             <SwipeActionRow
-                              onEdit={() => handleEditItem(item.id, item.title)}
-                              onDelete={() => handleDeleteItem(item.id)}
+                              key={action.id}
+                              onEdit={() => handleEditAction(action.id, action.title)}
+                              onDelete={() => handleDeleteAction(action.id)}
                               leftAction={
-                                (itemProgressMap.get(item.id) ?? 0) >= 100
-                                  ? { label: 'Riapri', onClick: () => handleReopenItem(item.id) }
-                                  : { label: 'Fatto', onClick: () => handleMarkItemDone(item.id) }
+                                action.percentComplete >= 100
+                                  ? { label: 'Riapri', onClick: () => handleReopenAction(action.id) }
+                                  : { label: 'Fatto', onClick: () => handleMarkActionDone(action.id) }
                               }
                             >
-                              <div className="item-head hierarchy-row row-compact">
-                                <div>
-                                  <small className="hierarchy-label">Voce</small>
-                                  <h4>{item.title}</h4>
+                              <div className="action-row action-row-readonly">
+                                <div className="action-main">
+                                  <span className="action-topline">
+                                    <small className="hierarchy-label">Azione</small>
+                                    <strong>{action.percentComplete}%</strong>
+                                  </span>
+                                  <span>{action.title}</span>
                                 </div>
-                                <div className="row-end">
-                                  <strong>{itemProgressMap.get(item.id) ?? 0}%</strong>
-                                  <button
-                                    type="button"
-                                    className="expand-btn"
-                                    onClick={() => setExpandedItemId((current) => (current === item.id ? null : item.id))}
-                                  >
-                                    {expandedItemId === item.id ? '▾' : '▸'}
-                                  </button>
-                                </div>
+                                <small>{action.percentComplete >= 100 ? 'Fatta' : 'Aperta'}</small>
                               </div>
                             </SwipeActionRow>
-                            {expandedItemId === item.id && (
-                              <div className="item-actions">
-                                {itemActions.map((action) => (
-                                <SwipeActionRow
-                                  key={action.id}
-                                  onEdit={() => handleEditAction(action.id, action.title)}
-                                  onDelete={() => handleDeleteAction(action.id)}
-                                  leftAction={
-                                    action.percentComplete >= 100
-                                      ? { label: 'Riapri', onClick: () => handleReopenAction(action.id) }
-                                      : { label: 'Fatto', onClick: () => handleMarkActionDone(action.id) }
-                                  }
-                                >
-                                    <div className="action-row action-row-readonly">
-                                      <div className="action-main">
-                                        <span className="action-topline">
-                                          <small className="hierarchy-label">Azione</small>
-                                          <strong>{action.percentComplete}%</strong>
-                                        </span>
-                                        <span>{action.title}</span>
-                                      </div>
-                                      <small>{action.percentComplete >= 100 ? 'Fatta' : 'Aperta'}</small>
-                                    </div>
-                                  </SwipeActionRow>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
+                          ))}
+                        </div>
+                      )}
                     </article>
                   );
                 })}

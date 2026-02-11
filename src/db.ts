@@ -1,9 +1,8 @@
 import Dexie, { type Table } from 'dexie';
-import type { CalendarEvent, Mutation, PlanAction, PlanItem, PriorityCategory, UserProfile } from './types';
+import type { CalendarEvent, Mutation, PlanAction, PriorityCategory, UserProfile } from './types';
 
 class PlanestDB extends Dexie {
   categories!: Table<PriorityCategory, string>;
-  items!: Table<PlanItem, string>;
   actions!: Table<PlanAction, string>;
   events!: Table<CalendarEvent, string>;
   profiles!: Table<UserProfile, string>;
@@ -23,6 +22,15 @@ class PlanestDB extends Dexie {
       categories: 'id, ownerUserId, owner, updatedAt',
       items: 'id, categoryId, updatedAt',
       actions: 'id, itemId, dueDate, updatedAt',
+      events: 'id, categoryId, startsAt, updatedAt',
+      profiles: 'id, displayName, updatedAt',
+      mutations: '++id, table, op, createdAt',
+    });
+
+    this.version(3).stores({
+      categories: 'id, ownerUserId, owner, updatedAt',
+      items: null,
+      actions: 'id, categoryId, dueDate, updatedAt',
       events: 'id, categoryId, startsAt, updatedAt',
       profiles: 'id, displayName, updatedAt',
       mutations: '++id, table, op, createdAt',

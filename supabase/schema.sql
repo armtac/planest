@@ -22,19 +22,9 @@ create table if not exists categories (
   updated_at timestamptz not null default now()
 );
 
-create table if not exists items (
-  id uuid primary key,
-  category_id uuid not null references categories(id) on delete cascade,
-  title text not null,
-  note text not null default '',
-  mention_user_ids uuid[] not null default '{}',
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-
 create table if not exists actions (
   id uuid primary key,
-  item_id uuid not null references items(id) on delete cascade,
+  category_id uuid not null references categories(id) on delete cascade,
   title text not null,
   percent_complete integer not null default 0 check (percent_complete >= 0 and percent_complete <= 100),
   due_date timestamptz,
@@ -66,11 +56,36 @@ alter table profiles add column if not exists email text;
 alter table profiles add column if not exists display_name text;
 alter table categories add column if not exists owner_user_id uuid references profiles(id) on delete set null;
 alter table categories add column if not exists color_name text;
-alter table items add column if not exists mention_user_ids uuid[] not null default '{}';
+alter table actions add column if not exists category_id uuid references categories(id) on delete cascade;
 alter table actions add column if not exists mention_user_ids uuid[] not null default '{}';
 alter table events add column if not exists exception_dates text[] not null default '{}';
 alter table events add column if not exists mention_user_ids uuid[] not null default '{}';
 alter table events add column if not exists color_name text;
+
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public' and table_name = 'actions' and column_name = 'item_id'
+  ) and exists (
+    select 1
+    from information_schema.tables
+    where table_schema = 'public' and table_name = 'items'
+  ) then
+    execute '
+      update actions
+      set category_id = items.category_id
+      from items
+      where actions.item_id = items.id
+        and actions.category_id is null
+    ';
+    execute 'alter table actions drop column if exists item_id';
+  end if;
+end $$;
+
+alter table actions alter column category_id set not null;
+drop table if exists items cascade;
 
 create or replace function public.handle_new_user_profile()
 returns trigger
@@ -100,7 +115,6 @@ for each row execute procedure public.handle_new_user_profile();
 
 alter table profiles enable row level security;
 alter table categories enable row level security;
-alter table items enable row level security;
 alter table actions enable row level security;
 alter table events enable row level security;
 
@@ -121,10 +135,6 @@ begin
 
   if not exists (select 1 from pg_policies where policyname = 'authenticated_all_categories') then
     create policy authenticated_all_categories on categories for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
-  end if;
-
-  if not exists (select 1 from pg_policies where policyname = 'authenticated_all_items') then
-    create policy authenticated_all_items on items for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
   end if;
 
   if not exists (select 1 from pg_policies where policyname = 'authenticated_all_actions') then

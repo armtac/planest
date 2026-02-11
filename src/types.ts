@@ -22,15 +22,8 @@ export type PriorityCategory = BaseEntity & {
   colorName: string | null;
 };
 
-export type PlanItem = BaseEntity & {
-  categoryId: UUID;
-  title: string;
-  note: string;
-  mentionUserIds: UUID[];
-};
-
 export type PlanAction = BaseEntity & {
-  itemId: UUID;
+  categoryId: UUID;
   title: string;
   percentComplete: number;
   dueDate: string | null;
@@ -55,7 +48,7 @@ export type CalendarEvent = BaseEntity & {
 
 export type Mutation = {
   id?: number;
-  table: 'categories' | 'items' | 'actions' | 'events' | 'profiles';
+  table: 'categories' | 'actions' | 'events' | 'profiles';
   op: 'upsert' | 'delete';
   payload: Record<string, unknown>;
   createdAt: string;

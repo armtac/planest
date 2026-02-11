@@ -3,7 +3,7 @@ import { endOfWeek, isWithinInterval, startOfWeek } from 'date-fns';
 import { db, createId, nowIso } from '../db';
 import { isSupabaseEnabled } from '../supabase';
 import { enqueueMutation, syncAll } from '../sync';
-import type { CalendarEvent, PlanAction, PlanItem, PriorityCategory, UserProfile, WeeklySummary } from '../types';
+import type { CalendarEvent, PlanAction, PriorityCategory, UserProfile, WeeklySummary } from '../types';
 
 type AddEventInput = {
   title: string;
@@ -26,24 +26,21 @@ const toRRuleUtcDateTime = (date: Date): string =>
 export const usePlanestData = () => {
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [categories, setCategories] = useState<PriorityCategory[]>([]);
-  const [items, setItems] = useState<PlanItem[]>([]);
   const [actions, setActions] = useState<PlanAction[]>([]);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    const [nextProfiles, nextCategories, nextItems, nextActions, nextEvents] = await Promise.all([
+    const [nextProfiles, nextCategories, nextActions, nextEvents] = await Promise.all([
       db.profiles.toArray(),
       db.categories.toArray(),
-      db.items.toArray(),
       db.actions.toArray(),
       db.events.toArray(),
     ]);
 
     setProfiles(nextProfiles);
     setCategories(nextCategories);
-    setItems(nextItems);
     setActions(nextActions);
     setEvents(nextEvents);
   }, []);
@@ -98,33 +95,12 @@ export const usePlanestData = () => {
     [refresh, safeSync],
   );
 
-  const addItem = useCallback(
-    async (categoryId: string, title: string, note: string, mentionUserIds: string[]) => {
-      const timestamp = nowIso();
-      const item: PlanItem = {
-        id: createId(),
-        categoryId,
-        title,
-        note,
-        mentionUserIds,
-        createdAt: timestamp,
-        updatedAt: timestamp,
-      };
-
-      await db.items.put(item);
-      await enqueueMutation({ table: 'items', op: 'upsert', payload: item, createdAt: timestamp });
-      await refresh();
-      void safeSync();
-    },
-    [refresh, safeSync],
-  );
-
   const addAction = useCallback(
-    async (itemId: string, title: string, dueDate: string | null, reminders: string[], mentionUserIds: string[]) => {
+    async (categoryId: string, title: string, dueDate: string | null, reminders: string[], mentionUserIds: string[]) => {
       const timestamp = nowIso();
       const action: PlanAction = {
         id: createId(),
-        itemId,
+        categoryId,
         title,
         percentComplete: 0,
         dueDate,
@@ -178,21 +154,6 @@ export const usePlanestData = () => {
     [refresh, safeSync],
   );
 
-  const updateItemTitle = useCallback(
-    async (itemId: string, title: string) => {
-      const existing = await db.items.get(itemId);
-      if (!existing) {
-        return;
-      }
-      const updated: PlanItem = { ...existing, title, updatedAt: nowIso() };
-      await db.items.put(updated);
-      await enqueueMutation({ table: 'items', op: 'upsert', payload: updated, createdAt: nowIso() });
-      await refresh();
-      void safeSync();
-    },
-    [refresh, safeSync],
-  );
-
   const updateActionTitle = useCallback(
     async (actionId: string, title: string) => {
       const existing = await db.actions.get(actionId);
@@ -224,31 +185,6 @@ export const usePlanestData = () => {
     [refresh, safeSync],
   );
 
-  const deleteItem = useCallback(
-    async (itemId: string) => {
-      const existing = await db.items.get(itemId);
-      if (!existing) {
-        return;
-      }
-
-      const linkedActions = await db.actions.where('itemId').equals(itemId).toArray();
-      const timestamp = nowIso();
-
-      if (linkedActions.length > 0) {
-        await db.actions.bulkDelete(linkedActions.map((action) => action.id));
-        for (const action of linkedActions) {
-          await enqueueMutation({ table: 'actions', op: 'delete', payload: { id: action.id }, createdAt: timestamp });
-        }
-      }
-
-      await db.items.delete(itemId);
-      await enqueueMutation({ table: 'items', op: 'delete', payload: { id: itemId }, createdAt: timestamp });
-      await refresh();
-      void safeSync();
-    },
-    [refresh, safeSync],
-  );
-
   const deletePriority = useCallback(
     async (categoryId: string) => {
       const existing = await db.categories.get(categoryId);
@@ -256,9 +192,7 @@ export const usePlanestData = () => {
         return;
       }
 
-      const linkedItems = await db.items.where('categoryId').equals(categoryId).toArray();
-      const linkedItemIds = linkedItems.map((item) => item.id);
-      const linkedActions = linkedItemIds.length === 0 ? [] : await db.actions.where('itemId').anyOf(linkedItemIds).toArray();
+      const linkedActions = await db.actions.where('categoryId').equals(categoryId).toArray();
       const linkedEvents = await db.events.where('categoryId').equals(categoryId).toArray();
       const timestamp = nowIso();
 
@@ -266,13 +200,6 @@ export const usePlanestData = () => {
         await db.actions.bulkDelete(linkedActions.map((action) => action.id));
         for (const action of linkedActions) {
           await enqueueMutation({ table: 'actions', op: 'delete', payload: { id: action.id }, createdAt: timestamp });
-        }
-      }
-
-      if (linkedItems.length > 0) {
-        await db.items.bulkDelete(linkedItems.map((item) => item.id));
-        for (const item of linkedItems) {
-          await enqueueMutation({ table: 'items', op: 'delete', payload: { id: item.id }, createdAt: timestamp });
         }
       }
 
@@ -397,29 +324,11 @@ export const usePlanestData = () => {
     [refresh, safeSync],
   );
 
-  const itemProgressMap = useMemo(() => {
-    const map = new Map<string, number>();
-
-    for (const item of items) {
-      const linkedActions = actions.filter((action) => action.itemId === item.id);
-      if (linkedActions.length === 0) {
-        map.set(item.id, 0);
-        continue;
-      }
-
-      const completed = linkedActions.filter((action) => action.percentComplete >= 100).length;
-      map.set(item.id, Math.round((completed / linkedActions.length) * 100));
-    }
-
-    return map;
-  }, [actions, items]);
-
   const categoryProgressMap = useMemo(() => {
     const map = new Map<string, number>();
 
     for (const category of categories) {
-      const linkedItemIds = items.filter((item) => item.categoryId === category.id).map((item) => item.id);
-      const linkedActions = linkedItemIds.length === 0 ? [] : actions.filter((action) => linkedItemIds.includes(action.itemId));
+      const linkedActions = actions.filter((action) => action.categoryId === category.id);
       if (linkedActions.length === 0) {
         map.set(category.id, 0);
         continue;
@@ -430,7 +339,7 @@ export const usePlanestData = () => {
     }
 
     return map;
-  }, [actions, categories, items]);
+  }, [actions, categories]);
 
   const weeklySummary = useMemo<WeeklySummary>(() => {
     const now = new Date();
@@ -505,24 +414,19 @@ export const usePlanestData = () => {
   return {
     profiles,
     categories,
-    items,
     actions,
     events,
-    itemProgressMap,
     categoryProgressMap,
     weeklySummary,
     incompleteWithDueDate,
     isSyncing,
     lastSyncAt,
     addCategory,
-    addItem,
     addAction,
     updateActionProgress,
     updatePriorityMeta,
-    updateItemTitle,
     updateActionTitle,
     deletePriority,
-    deleteItem,
     deleteAction,
     addEvent,
     updateEvent,

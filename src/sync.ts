@@ -1,8 +1,8 @@
 import { db } from './db';
 import { isSupabaseEnabled, supabase } from './supabase';
-import type { CalendarEvent, Mutation, PlanAction, PlanItem, PriorityCategory, UserProfile } from './types';
+import type { CalendarEvent, Mutation, PlanAction, PriorityCategory, UserProfile } from './types';
 
-type SyncTable = 'categories' | 'items' | 'actions' | 'events' | 'profiles';
+type SyncTable = 'categories' | 'actions' | 'events' | 'profiles';
 
 type RemoteCategory = {
   id: string;
@@ -15,19 +15,9 @@ type RemoteCategory = {
   updated_at: string;
 };
 
-type RemoteItem = {
-  id: string;
-  category_id: string;
-  title: string;
-  note: string;
-  mention_user_ids: string[];
-  created_at: string;
-  updated_at: string;
-};
-
 type RemoteAction = {
   id: string;
-  item_id: string;
+  category_id: string;
   title: string;
   percent_complete: number;
   due_date: string | null;
@@ -63,7 +53,7 @@ type RemoteProfile = {
   updated_at: string;
 };
 
-const tableNames: SyncTable[] = ['categories', 'items', 'actions', 'events', 'profiles'];
+const tableNames: SyncTable[] = ['categories', 'actions', 'events', 'profiles'];
 
 const toRemote = (table: SyncTable, payload: Record<string, unknown>) => {
   if (table === 'categories') {
@@ -81,25 +71,11 @@ const toRemote = (table: SyncTable, payload: Record<string, unknown>) => {
     return remote;
   }
 
-  if (table === 'items') {
-    const data = payload as PlanItem;
-    const remote: RemoteItem = {
-      id: data.id,
-      category_id: data.categoryId,
-      title: data.title,
-      note: data.note,
-      mention_user_ids: data.mentionUserIds,
-      created_at: data.createdAt,
-      updated_at: data.updatedAt,
-    };
-    return remote;
-  }
-
   if (table === 'actions') {
     const data = payload as PlanAction;
     const remote: RemoteAction = {
       id: data.id,
-      item_id: data.itemId,
+      category_id: data.categoryId,
       title: data.title,
       percent_complete: data.percentComplete,
       due_date: data.dueDate,
@@ -160,25 +136,11 @@ const toLocal = (table: SyncTable, payload: Record<string, unknown>) => {
     return local;
   }
 
-  if (table === 'items') {
-    const data = payload as RemoteItem;
-    const local: PlanItem = {
-      id: data.id,
-      categoryId: data.category_id,
-      title: data.title,
-      note: data.note,
-      mentionUserIds: data.mention_user_ids ?? [],
-      createdAt: data.created_at,
-      updatedAt: data.updated_at,
-    };
-    return local;
-  }
-
   if (table === 'actions') {
     const data = payload as RemoteAction;
     const local: PlanAction = {
       id: data.id,
-      itemId: data.item_id,
+      categoryId: data.category_id,
       title: data.title,
       percentComplete: data.percent_complete,
       dueDate: data.due_date,
@@ -267,9 +229,6 @@ const pullSnapshot = async (): Promise<void> => {
 
     if (table === 'categories') {
       await db.categories.bulkPut(localRows as PriorityCategory[]);
-    }
-    if (table === 'items') {
-      await db.items.bulkPut(localRows as PlanItem[]);
     }
     if (table === 'actions') {
       await db.actions.bulkPut(localRows as PlanAction[]);
