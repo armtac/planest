@@ -430,8 +430,8 @@ const ReminderEditor = ({
     <label>{label}</label>
     <div className="reminder-row">
       <input type="datetime-local" value={inputValue} onChange={(event) => onInputChange(event.target.value)} />
-      <button type="button" onClick={onAdd}>
-        Aggiungi
+      <button type="button" className="reminder-add-btn" onClick={onAdd}>
+        Aggiungi Reminder
       </button>
     </div>
     <div className="reminder-list">
@@ -2093,8 +2093,8 @@ function App() {
                         onChange={(event) => setEventReminderCustomAt(event.target.value)}
                       />
                     )}
-                    <button type="button" onClick={addEventReminder}>
-                      Aggiungi
+                    <button type="button" className="reminder-add-btn" onClick={addEventReminder}>
+                      Aggiungi Reminder
                     </button>
                   </div>
                   {!eventStartsAt && eventReminderPreset !== 'custom' && (
