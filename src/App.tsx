@@ -12,7 +12,6 @@ import {
   endOfMonth,
   endOfWeek,
   format,
-  isBefore,
   isSameDay,
   isSameMonth,
   startOfDay,
@@ -455,8 +454,6 @@ function App() {
     actions,
     events,
     categoryProgressMap,
-    weeklySummary,
-    incompleteWithDueDate,
     isSyncing,
     lastSyncAt,
     addCategory,
@@ -965,25 +962,6 @@ function App() {
 
     return rows.sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
   }, [events, filterPriority, filterUserId, isCategoryRelevantToUser]);
-
-  const filteredIncompleteActions = useMemo(
-    () =>
-      incompleteWithDueDate.filter((action) => {
-        if (filterUserId === 'all') {
-          return true;
-        }
-        if (action.mentionUserIds.includes(filterUserId)) {
-          return true;
-        }
-        return isCategoryRelevantToUser(action.categoryId);
-      }),
-    [filterUserId, incompleteWithDueDate, isCategoryRelevantToUser],
-  );
-
-  const overdueCount = useMemo(
-    () => filteredIncompleteActions.filter((action) => action.dueDate && isBefore(new Date(action.dueDate), new Date())).length,
-    [filteredIncompleteActions],
-  );
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -1519,11 +1497,6 @@ function App() {
         <section className="page-grid home-grid">
           <article className="card metric">
             <h3>Riepilogo settimanale</h3>
-            <strong>{weeklySummary.completedActions} completate</strong>
-            <p>
-              {filteredActions.filter((action) => action.percentComplete < 100).length} incomplete - {overdueCount} in ritardo -{' '}
-              {weeklyHomeEvents.length} eventi settimana
-            </p>
             <div className="weekly-events-compact">
               {weeklyHomeEvents.map((event) => (
                 <span key={event.id} className="weekly-event-chip">
