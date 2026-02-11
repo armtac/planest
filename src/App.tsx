@@ -585,7 +585,6 @@ function App() {
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [eventFeedback, setEventFeedback] = useState<string | null>(null);
   const [expandedDayEventId, setExpandedDayEventId] = useState<string | null>(null);
-  const [dueReminderAlerts, setDueReminderAlerts] = useState<Array<{ id: string; text: string }>>([]);
 
   const [calendarView, setCalendarView] = useState<CalendarView>('month');
   const [calendarDate, setCalendarDate] = useState(new Date());
@@ -975,9 +974,6 @@ function App() {
       const sentRaw = localStorage.getItem(sentKey);
       const sent = new Set<string>(sentRaw ? JSON.parse(sentRaw) : []);
       const now = new Date();
-      const windowStart = new Date(now.getTime() - 15 * 60 * 1000);
-      const dueAlerts: Array<{ id: string; text: string }> = [];
-
       for (const action of filteredActions) {
         if (action.percentComplete >= 100) {
           continue;
@@ -986,11 +982,13 @@ function App() {
           const reminderDate = new Date(reminder);
           const token = `action:${action.id}:${reminderDate.toISOString()}`;
           if (canNotify && reminderDate <= now && !sent.has(token)) {
-            new Notification('Planest Reminder', { body: `Azione incompleta: ${action.title}` });
+            const notification = new Notification('Planest Reminder', { body: `Azione incompleta: ${action.title}` });
+            notification.onclick = () => {
+              window.focus();
+              setPage('priorities');
+              setExpandedPriorityId(action.categoryId);
+            };
             sent.add(token);
-          }
-          if (reminderDate <= now && reminderDate >= windowStart) {
-            dueAlerts.push({ id: token, text: `Azione: ${action.title}` });
           }
         }
       }
@@ -1000,17 +998,18 @@ function App() {
           const reminderDate = new Date(reminder);
           const token = `event:${event.id}:${reminderDate.toISOString()}`;
           if (canNotify && reminderDate <= now && !sent.has(token)) {
-            new Notification('Planest Reminder', { body: `Evento: ${event.title}` });
+            const notification = new Notification('Planest Reminder', { body: `Evento: ${event.title}` });
+            notification.onclick = () => {
+              window.focus();
+              setPage('calendar');
+              selectCalendarDay(new Date(event.startsAt));
+            };
             sent.add(token);
-          }
-          if (reminderDate <= now && reminderDate >= windowStart) {
-            dueAlerts.push({ id: token, text: `Evento: ${event.title}` });
           }
         }
       }
 
       localStorage.setItem(sentKey, JSON.stringify(Array.from(sent)));
-      setDueReminderAlerts(dueAlerts.slice(0, 6));
     };
 
     checkReminders();
@@ -1911,16 +1910,6 @@ function App() {
           </article>
 
           <aside className="stack">
-            <article className="card list-card">
-              <h3>Reminder attivi</h3>
-              {dueReminderAlerts.map((alert) => (
-                <div key={alert.id} className="list-row">
-                  <small>{alert.text}</small>
-                </div>
-              ))}
-              {dueReminderAlerts.length === 0 && <p>Nessun reminder recente.</p>}
-            </article>
-
             <article className="card list-card" ref={selectedDayCardRef}>
               <h3>
                 Giorno selezionato: {format(selectedCalendarDate, 'dd/MM/yyyy')}
