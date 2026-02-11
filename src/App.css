@@ -5,8 +5,11 @@
   --card: rgba(255, 255, 255, 0.9);
   --ink: #17181c;
   --subtle: #6b6f76;
-  --accent: #0f766e;
+  --accent: #0b5f5a;
+  --accent-strong: #084d49;
   --line: rgba(15, 23, 42, 0.1);
+  --field-bg: #ffffff;
+  --panel-bg: #ffffff;
   --warning: #ff9f0a;
   --radius: 16px;
   --bg-gradient: radial-gradient(circle at top right, #f9fcff 0%, var(--bg) 48%, #eef3fa 100%);
@@ -17,8 +20,11 @@
   --card: rgba(20, 27, 38, 0.92);
   --ink: #e8edf7;
   --subtle: #9aa7bd;
-  --accent: #14b8a6;
+  --accent: #0b5f5a;
+  --accent-strong: #08423f;
   --line: rgba(148, 163, 184, 0.22);
+  --field-bg: #1a2432;
+  --panel-bg: #1a2432;
   --warning: #f59e0b;
   --bg-gradient: radial-gradient(circle at top right, #1b2735 0%, #0f1720 52%, #0a1019 100%);
 }
@@ -95,6 +101,10 @@ body {
   filter: grayscale(1) brightness(0.65);
 }
 
+:root[data-theme='dark'] .theme-toggle {
+  background: color-mix(in srgb, var(--field-bg), black 10%);
+}
+
 .brand-block p {
   margin: 0.25rem 0 0;
   color: var(--subtle);
@@ -120,9 +130,15 @@ body {
 }
 
 .top-nav button[data-active='true'] {
-  background: color-mix(in srgb, var(--accent), white 88%);
-  border-color: color-mix(in srgb, var(--accent), white 68%);
-  color: color-mix(in srgb, var(--accent), black 22%);
+  background: color-mix(in srgb, var(--accent), white 80%);
+  border-color: color-mix(in srgb, var(--accent), white 45%);
+  color: var(--accent-strong);
+}
+
+:root[data-theme='dark'] .top-nav button[data-active='true'] {
+  background: color-mix(in srgb, var(--accent), black 22%);
+  border-color: color-mix(in srgb, var(--accent), white 12%);
+  color: #d9f8f3;
 }
 
 .user-badge {
@@ -465,6 +481,18 @@ button {
   -webkit-tap-highlight-color: transparent;
 }
 
+input,
+select,
+textarea {
+  background: var(--field-bg);
+  color: var(--ink);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: color-mix(in srgb, var(--subtle), transparent 10%);
+}
+
 textarea {
   resize: vertical;
 }
@@ -479,6 +507,10 @@ button {
     background-color 120ms ease,
     transform 80ms ease,
     box-shadow 120ms ease;
+}
+
+button:hover {
+  background: var(--accent-strong);
 }
 
 button:hover {
@@ -661,7 +693,7 @@ button:disabled {
 
 .priority-card {
   border: 1px solid color-mix(in srgb, var(--line), #334155 20%);
-  background: #ffffff;
+  background: var(--panel-bg);
   box-shadow: 0 4px 18px rgba(15, 23, 42, 0.05);
 }
 
@@ -688,7 +720,7 @@ button:disabled {
   gap: 0.2rem;
   padding: 0.2rem;
   border-radius: 999px;
-  background: #e8edf7;
+  background: color-mix(in srgb, var(--field-bg), #cfd8e8 35%);
 }
 
 .segmented button {
@@ -701,7 +733,7 @@ button:disabled {
 }
 
 .segmented button[data-active='true'] {
-  background: white;
+  background: var(--panel-bg);
   border-color: var(--line);
 }
 
@@ -738,7 +770,7 @@ button:disabled {
 .day-cell {
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: white;
+  background: var(--panel-bg);
   min-height: 100px;
   color: var(--ink);
   text-align: left;
@@ -785,7 +817,7 @@ button:disabled {
 
 .week-column {
   border: 1px solid var(--line);
-  background: white;
+  background: var(--panel-bg);
   border-radius: 10px;
   padding: 0.5rem;
   color: var(--ink);
@@ -800,7 +832,7 @@ button:disabled {
   margin-top: 0.35rem;
   border-left: 4px solid var(--accent);
   border-radius: 8px;
-  background: #f6f9ff;
+  background: color-mix(in srgb, var(--panel-bg), #ecf5ff 20%);
   padding: 0.32rem 0.42rem;
 }
 
@@ -821,7 +853,7 @@ button:disabled {
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 0.55rem;
-  background: white;
+  background: var(--panel-bg);
   color: var(--ink);
   text-align: left;
 }
@@ -852,7 +884,7 @@ button:disabled {
 .mention-btn {
   min-height: 28px;
   border: 1px solid var(--line);
-  background: #fff;
+  background: var(--panel-bg);
   color: var(--ink);
   border-radius: 999px;
   padding: 0.15rem 0.48rem;
@@ -876,7 +908,7 @@ button:disabled {
   align-items: center;
   gap: 0.35rem;
   border: 1px solid var(--line);
-  background: white;
+  background: var(--panel-bg);
   border-radius: 999px;
   padding: 0.25rem 0.45rem;
   font-size: 0.84rem;
@@ -900,7 +932,7 @@ button:disabled {
   align-items: center;
   gap: 0.3rem;
   border: 1px solid var(--line);
-  background: white;
+  background: var(--panel-bg);
   border-radius: 999px;
   padding: 0.28rem 0.52rem;
   font-size: 0.88rem;
