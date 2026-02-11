@@ -9,6 +9,18 @@
   --line: rgba(15, 23, 42, 0.1);
   --warning: #ff9f0a;
   --radius: 16px;
+  --bg-gradient: radial-gradient(circle at top right, #f9fcff 0%, var(--bg) 48%, #eef3fa 100%);
+}
+
+:root[data-theme='dark'] {
+  --bg: #0f1720;
+  --card: rgba(20, 27, 38, 0.92);
+  --ink: #e8edf7;
+  --subtle: #9aa7bd;
+  --accent: #14b8a6;
+  --line: rgba(148, 163, 184, 0.22);
+  --warning: #f59e0b;
+  --bg-gradient: radial-gradient(circle at top right, #1b2735 0%, #0f1720 52%, #0a1019 100%);
 }
 
 * {
@@ -17,7 +29,7 @@
 
 body {
   margin: 0;
-  background: radial-gradient(circle at top right, #f9fcff 0%, var(--bg) 48%, #eef3fa 100%);
+  background: var(--bg-gradient);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -55,11 +67,32 @@ body {
   font-size: 1.65rem;
 }
 
+.brand-block {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
 .app-title {
   font-family: 'Plus Jakarta Sans', 'Avenir Next', 'SF Pro Rounded', 'SF Pro Display', 'Segoe UI', sans-serif;
   text-transform: uppercase;
   font-weight: 800;
   letter-spacing: 0.09em;
+}
+
+.theme-toggle {
+  width: 38px;
+  min-width: 38px;
+  min-height: 38px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  padding: 0;
+}
+
+.theme-toggle.is-off {
+  filter: grayscale(1) brightness(0.65);
 }
 
 .brand-block p {
@@ -99,7 +132,7 @@ body {
   padding: 0.4rem 0.62rem;
   border: 1px solid var(--line);
   border-radius: 999px;
-  background: #fff;
+  background: var(--card);
   color: var(--ink);
   font-size: 0.84rem;
   white-space: nowrap;
@@ -121,7 +154,7 @@ body {
   right: 0;
   top: calc(100% + 6px);
   min-width: 180px;
-  background: #fff;
+  background: var(--card);
   border: 1px solid var(--line);
   border-radius: 12px;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.14);
@@ -263,6 +296,21 @@ body {
   color: var(--subtle);
 }
 
+.weekly-events-compact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.45rem;
+}
+
+.weekly-event-chip {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.18rem 0.55rem;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
 .warning {
   border-color: color-mix(in srgb, var(--warning), white 50%);
 }
@@ -307,7 +355,7 @@ body {
   border-radius: 10px;
   padding: 0.45rem 0.55rem;
   margin-bottom: 0.45rem;
-  background: #fff;
+  background: var(--card);
 }
 
 .day-event-toggle {
@@ -454,7 +502,7 @@ button:disabled {
 .progress-card {
   border: 1px solid var(--line);
   border-radius: 12px;
-  background: white;
+  background: var(--card);
   padding: 0.65rem;
 }
 
@@ -552,7 +600,7 @@ button:disabled {
   position: relative;
   overflow: hidden;
   border-radius: 10px;
-  background: #fff;
+  background: var(--card);
   width: 100%;
 }
 
@@ -560,7 +608,7 @@ button:disabled {
   position: relative;
   z-index: 1;
   transition: transform 150ms ease;
-  background: #fff;
+  background: var(--card);
   width: 100%;
 }
 

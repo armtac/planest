@@ -545,6 +545,12 @@ function App() {
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   const [authError, setAuthError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
+  const [themeMode, setThemeMode] = useState<'light' | 'dark'>(() => {
+    if (typeof window === 'undefined') {
+      return 'light';
+    }
+    return localStorage.getItem('planest_theme') === 'dark' ? 'dark' : 'light';
+  });
 
   const [page, setPage] = useState<AppPage>('home');
   const [filterPriority, setFilterPriority] = useState('all');
@@ -582,6 +588,7 @@ function App() {
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [eventFeedback, setEventFeedback] = useState<string | null>(null);
   const [expandedDayEventId, setExpandedDayEventId] = useState<string | null>(null);
+  const [dueReminderAlerts, setDueReminderAlerts] = useState<Array<{ id: string; text: string }>>([]);
 
   const [calendarView, setCalendarView] = useState<CalendarView>('month');
   const [calendarDate, setCalendarDate] = useState(new Date());
@@ -599,6 +606,14 @@ function App() {
   const userMenuRef = useRef<HTMLDivElement | null>(null);
   const selectedDayCardRef = useRef<HTMLElement | null>(null);
   const eventFormCardRef = useRef<HTMLDetailsElement | null>(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    document.documentElement.setAttribute('data-theme', themeMode);
+    localStorage.setItem('planest_theme', themeMode);
+  }, [themeMode]);
 
   useEffect(() => {
     if (!isSupabaseEnabled || !supabase) {
@@ -906,6 +921,51 @@ function App() {
     setExpandedDayEventId(null);
   }, [selectedCalendarDate]);
 
+  const weeklyHomeEvents = useMemo(() => {
+    const weekRange = {
+      start: startOfWeek(new Date(), { weekStartsOn: 1 }),
+      end: endOfWeek(new Date(), { weekStartsOn: 1 }),
+    };
+    const rows: Array<{ id: string; title: string; day: string; startsAt: Date }> = [];
+
+    for (const event of events) {
+      if (filterPriority !== 'all' && event.categoryId !== filterPriority) {
+        continue;
+      }
+      if (filterUserId !== 'all') {
+        const categoryRelevant = event.categoryId ? isCategoryRelevantToUser(event.categoryId) : false;
+        const mentionRelevant = event.mentionUserIds.includes(filterUserId);
+        if (!categoryRelevant && !mentionRelevant) {
+          continue;
+        }
+      }
+
+      const sourceStart = new Date(event.startsAt);
+      if (!event.recurrenceRule) {
+        if (sourceStart >= weekRange.start && sourceStart <= weekRange.end) {
+          rows.push({ id: event.id, title: event.title, day: format(sourceStart, 'EEE dd'), startsAt: sourceStart });
+        }
+        continue;
+      }
+
+      const rule = rrulestr(event.recurrenceRule.replace('RRULE:', ''), { dtstart: sourceStart }) as RRule;
+      const exceptionSet = new Set(event.exceptionDates ?? []);
+      const occurrences = rule
+        .between(weekRange.start, weekRange.end, true)
+        .filter((occurrence) => !exceptionSet.has(getDayIso(occurrence)));
+      for (const occurrence of occurrences) {
+        rows.push({
+          id: `${event.id}-${occurrence.toISOString()}`,
+          title: event.title,
+          day: format(occurrence, 'EEE dd'),
+          startsAt: occurrence,
+        });
+      }
+    }
+
+    return rows.sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
+  }, [events, filterPriority, filterUserId, isCategoryRelevantToUser]);
+
   const filteredIncompleteActions = useMemo(
     () =>
       incompleteWithDueDate.filter((action) => {
@@ -920,33 +980,25 @@ function App() {
     [filterUserId, incompleteWithDueDate, isCategoryRelevantToUser],
   );
 
-  const overdueActions = useMemo(
-    () =>
-      filteredIncompleteActions
-        .filter((action) => action.dueDate && isBefore(new Date(action.dueDate), new Date()))
-        .sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime()),
-    [filteredIncompleteActions],
-  );
-
-  const upcomingActions = useMemo(
-    () =>
-      filteredIncompleteActions
-        .filter((action) => action.dueDate && !isBefore(new Date(action.dueDate), new Date()))
-        .sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime()),
+  const overdueCount = useMemo(
+    () => filteredIncompleteActions.filter((action) => action.dueDate && isBefore(new Date(action.dueDate), new Date())).length,
     [filteredIncompleteActions],
   );
 
   useEffect(() => {
-    if (notificationPermission !== 'granted' || typeof window === 'undefined' || !('Notification' in window)) {
+    if (typeof window === 'undefined') {
       return;
     }
 
     const sentKey = 'planest_sent_reminders';
+    const canNotify = notificationPermission === 'granted' && 'Notification' in window;
 
     const checkReminders = () => {
       const sentRaw = localStorage.getItem(sentKey);
       const sent = new Set<string>(sentRaw ? JSON.parse(sentRaw) : []);
       const now = new Date();
+      const windowStart = new Date(now.getTime() - 15 * 60 * 1000);
+      const dueAlerts: Array<{ id: string; text: string }> = [];
 
       for (const action of filteredActions) {
         if (action.percentComplete >= 100) {
@@ -955,9 +1007,12 @@ function App() {
         for (const reminder of action.reminders) {
           const reminderDate = new Date(reminder);
           const token = `action:${action.id}:${reminderDate.toISOString()}`;
-          if (reminderDate <= now && !sent.has(token)) {
+          if (canNotify && reminderDate <= now && !sent.has(token)) {
             new Notification('Planest Reminder', { body: `Azione incompleta: ${action.title}` });
             sent.add(token);
+          }
+          if (reminderDate <= now && reminderDate >= windowStart) {
+            dueAlerts.push({ id: token, text: `Azione: ${action.title}` });
           }
         }
       }
@@ -966,14 +1021,18 @@ function App() {
         for (const reminder of event.reminders) {
           const reminderDate = new Date(reminder);
           const token = `event:${event.id}:${reminderDate.toISOString()}`;
-          if (reminderDate <= now && !sent.has(token)) {
+          if (canNotify && reminderDate <= now && !sent.has(token)) {
             new Notification('Planest Reminder', { body: `Evento: ${event.title}` });
             sent.add(token);
+          }
+          if (reminderDate <= now && reminderDate >= windowStart) {
+            dueAlerts.push({ id: token, text: `Evento: ${event.title}` });
           }
         }
       }
 
       localStorage.setItem(sentKey, JSON.stringify(Array.from(sent)));
+      setDueReminderAlerts(dueAlerts.slice(0, 6));
     };
 
     checkReminders();
@@ -1298,6 +1357,15 @@ function App() {
       <header className="topbar card">
         <div className="brand-block">
           <h1 className="app-title">Planest</h1>
+          <button
+            type="button"
+            className={`theme-toggle${themeMode === 'dark' ? ' is-off' : ''}`}
+            onClick={() => setThemeMode((current) => (current === 'light' ? 'dark' : 'light'))}
+            title={themeMode === 'light' ? 'Passa a modalita Dark' : 'Passa a modalita Light'}
+            aria-label={themeMode === 'light' ? 'Passa a modalita Dark' : 'Passa a modalita Light'}
+          >
+            💡
+          </button>
         </div>
         <nav className="top-nav" aria-label="Main">
           <button type="button" data-active={page === 'home'} onClick={() => setPage('home')}>
@@ -1395,31 +1463,17 @@ function App() {
             <h3>Riepilogo settimanale</h3>
             <strong>{weeklySummary.completedActions} completate</strong>
             <p>
-              {filteredActions.filter((action) => action.percentComplete < 100).length} incomplete -{' '}
-              {filteredIncompleteActions.length} con scadenza - {visibleCalendarEvents.length} eventi visibili
+              {filteredActions.filter((action) => action.percentComplete < 100).length} incomplete - {overdueCount} in ritardo -{' '}
+              {weeklyHomeEvents.length} eventi settimana
             </p>
-          </article>
-
-          <article className="card list-card">
-            <h3>Scadenze prossime</h3>
-            {upcomingActions.slice(0, 6).map((action) => (
-              <div key={action.id} className="list-row">
-                <span>{action.title}</span>
-                <small>{action.dueDate ? format(new Date(action.dueDate), 'dd/MM HH:mm') : '-'}</small>
-              </div>
-            ))}
-            {upcomingActions.length === 0 && <p>Nessuna scadenza prossima.</p>}
-          </article>
-
-          <article className="card list-card warning">
-            <h3>Scadenze passate</h3>
-            {overdueActions.slice(0, 6).map((action) => (
-              <div key={action.id} className="list-row">
-                <span>{action.title}</span>
-                <small>{action.dueDate ? format(new Date(action.dueDate), 'dd/MM HH:mm') : '-'}</small>
-              </div>
-            ))}
-            {overdueActions.length === 0 && <p>Nessuna scadenza passata.</p>}
+            <div className="weekly-events-compact">
+              {weeklyHomeEvents.map((event) => (
+                <span key={event.id} className="weekly-event-chip">
+                  <strong>{event.day}</strong> {event.title}
+                </span>
+              ))}
+              {weeklyHomeEvents.length === 0 && <small>Nessun evento questa settimana.</small>}
+            </div>
           </article>
 
           <article className="card span-2">
@@ -1428,17 +1482,8 @@ function App() {
               {visiblePriorities.map((priority) => (
                 <div key={priority.id} className="progress-card compact">
                   <div className="progress-head">
-                    <div>
-                      <strong>{priority.title}</strong>
-                      <p>
-                        Owner: {priority.owner}
-                        {colorCategories[priority.color] ? ` · ${colorCategories[priority.color]}` : ''}
-                      </p>
-                    </div>
+                    <strong>{priority.title}</strong>
                     <strong style={{ color: priority.color }}>{categoryProgressMap.get(priority.id) ?? 0}%</strong>
-                  </div>
-                  <div className="bar">
-                    <span style={{ width: `${categoryProgressMap.get(priority.id) ?? 0}%`, backgroundColor: priority.color }} />
                   </div>
                 </div>
               ))}
@@ -1822,6 +1867,16 @@ function App() {
           </article>
 
           <aside className="stack">
+            <article className="card list-card">
+              <h3>Reminder attivi</h3>
+              {dueReminderAlerts.map((alert) => (
+                <div key={alert.id} className="list-row">
+                  <small>{alert.text}</small>
+                </div>
+              ))}
+              {dueReminderAlerts.length === 0 && <p>Nessun reminder recente.</p>}
+            </article>
+
             <article className="card list-card" ref={selectedDayCardRef}>
               <h3>
                 Giorno selezionato: {format(selectedCalendarDate, 'dd/MM/yyyy')}
