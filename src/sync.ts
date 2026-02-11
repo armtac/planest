@@ -31,6 +31,7 @@ type RemoteEvent = {
   id: string;
   category_id: string | null;
   title: string;
+  description: string;
   starts_at: string;
   ends_at: string;
   recurrence_rule: string | null;
@@ -104,6 +105,7 @@ const toRemote = (table: SyncTable, payload: Record<string, unknown>) => {
     id: data.id,
     category_id: data.categoryId,
     title: data.title,
+    description: data.description,
     starts_at: data.startsAt,
     ends_at: data.endsAt,
     recurrence_rule: data.recurrenceRule,
@@ -169,6 +171,7 @@ const toLocal = (table: SyncTable, payload: Record<string, unknown>) => {
     id: data.id,
     categoryId: data.category_id,
     title: data.title,
+    description: data.description ?? '',
     startsAt: data.starts_at,
     endsAt: data.ends_at,
     recurrenceRule: data.recurrence_rule,

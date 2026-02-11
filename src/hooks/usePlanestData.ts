@@ -7,6 +7,7 @@ import type { CalendarEvent, PlanAction, PriorityCategory, UserProfile, WeeklySu
 
 type AddEventInput = {
   title: string;
+  description: string;
   categoryId: string | null;
   startsAt: string;
   endsAt: string;
@@ -225,6 +226,7 @@ export const usePlanestData = () => {
       const event: CalendarEvent = {
         id: createId(),
         title: input.title,
+        description: input.description,
         categoryId: input.categoryId,
         startsAt: input.startsAt,
         endsAt: input.endsAt,
@@ -258,6 +260,7 @@ export const usePlanestData = () => {
       const updated: CalendarEvent = {
         ...existing,
         title: input.title,
+        description: input.description,
         categoryId: input.categoryId,
         startsAt: input.startsAt,
         endsAt: input.endsAt,

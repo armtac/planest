@@ -35,6 +35,7 @@ type AgendaEvent = {
   id: string;
   baseEventId: string;
   title: string;
+  description: string;
   startsAt: Date;
   endsAt: Date;
   occurrenceDate: string;
@@ -42,6 +43,7 @@ type AgendaEvent = {
   colorName: string | null;
   priorityId: string | null;
   mentionUserIds: string[];
+  reminders: string[];
   attachmentName: string | null;
   attachmentDataUrl: string | null;
   source: 'planest' | 'holiday';
@@ -565,6 +567,7 @@ function App() {
   const [actionReminderList, setActionReminderList] = useState<string[]>([]);
 
   const [eventTitle, setEventTitle] = useState('');
+  const [eventDescription, setEventDescription] = useState('');
   const [eventPriorityId, setEventPriorityId] = useState('');
   const [eventStartsAt, setEventStartsAt] = useState('');
   const [eventEndsAt, setEventEndsAt] = useState('');
@@ -578,6 +581,7 @@ function App() {
   const [eventFile, setEventFile] = useState<File | null>(null);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [eventFeedback, setEventFeedback] = useState<string | null>(null);
+  const [expandedDayEventId, setExpandedDayEventId] = useState<string | null>(null);
 
   const [calendarView, setCalendarView] = useState<CalendarView>('month');
   const [calendarDate, setCalendarDate] = useState(new Date());
@@ -594,6 +598,7 @@ function App() {
   const [showProfileEmail, setShowProfileEmail] = useState(false);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
   const selectedDayCardRef = useRef<HTMLElement | null>(null);
+  const eventFormCardRef = useRef<HTMLDetailsElement | null>(null);
 
   useEffect(() => {
     if (!isSupabaseEnabled || !supabase) {
@@ -769,6 +774,7 @@ function App() {
               id: `holiday-${holiday.date}`,
               baseEventId: `holiday-${holiday.date}`,
               title: holiday.localName || holiday.name,
+              description: '',
               startsAt: start,
               endsAt: new Date(`${holiday.date}T23:59:59`),
               occurrenceDate: holiday.date,
@@ -776,6 +782,7 @@ function App() {
               colorName: 'Festivita',
               priorityId: null,
               mentionUserIds: [],
+              reminders: [],
               attachmentName: null,
               attachmentDataUrl: null,
               source: 'holiday' as const,
@@ -824,6 +831,7 @@ function App() {
               id: event.id,
               baseEventId: event.id,
               title: event.title,
+              description: event.description,
               startsAt: sourceStart,
               endsAt: sourceEnd,
               occurrenceDate,
@@ -831,6 +839,7 @@ function App() {
               colorName: event.colorName,
               priorityId: event.categoryId,
               mentionUserIds: event.mentionUserIds,
+              reminders: event.reminders ?? [],
               attachmentName: event.attachmentName,
               attachmentDataUrl: event.attachmentDataUrl,
               source: 'planest' as const,
@@ -851,6 +860,7 @@ function App() {
           id: `${event.id}-${idx}-${occurrence.toISOString()}`,
           baseEventId: event.id,
           title: event.title,
+          description: event.description,
           startsAt: occurrence,
           endsAt: new Date(occurrence.getTime() + durationMs),
           occurrenceDate: getDayIso(occurrence),
@@ -858,6 +868,7 @@ function App() {
           colorName: event.colorName,
           priorityId: event.categoryId,
           mentionUserIds: event.mentionUserIds,
+          reminders: event.reminders ?? [],
           attachmentName: event.attachmentName,
           attachmentDataUrl: event.attachmentDataUrl,
           source: 'planest' as const,
@@ -890,6 +901,10 @@ function App() {
     () => visibleCalendarEvents.filter((event) => isSameDay(event.startsAt, selectedCalendarDate)),
     [selectedCalendarDate, visibleCalendarEvents],
   );
+
+  useEffect(() => {
+    setExpandedDayEventId(null);
+  }, [selectedCalendarDate]);
 
   const filteredIncompleteActions = useMemo(
     () =>
@@ -1135,12 +1150,13 @@ function App() {
       return;
     }
 
-    const mentionUserIds = parseMentionUserIds(eventTitle, effectiveUsers);
+    const mentionUserIds = parseMentionUserIds(`${eventTitle} ${eventDescription}`, effectiveUsers);
     const currentEditing = editingEventId ? events.find((entry) => entry.id === editingEventId) ?? null : null;
     const attachmentDataUrl = eventFile ? await fileToDataUrl(eventFile) : currentEditing?.attachmentDataUrl ?? null;
 
     const input = {
       title: eventTitle.trim(),
+      description: eventDescription.trim(),
       categoryId: eventPriorityId || null,
       startsAt: startsAtIso,
       endsAt: endsAtIso,
@@ -1168,6 +1184,7 @@ function App() {
     }
 
     setEventTitle('');
+    setEventDescription('');
     setEventPriorityId('');
     setEventRecurrence('none');
     setEventRecurrenceUntil('');
@@ -1208,6 +1225,7 @@ function App() {
     const recurrence = parseRecurrenceRule(sourceEvent?.recurrenceRule ?? null);
     setEditingEventId(event.baseEventId);
     setEventTitle(event.title);
+    setEventDescription(sourceEvent?.description ?? event.description ?? '');
     setEventPriorityId(event.priorityId ?? '');
     setEventStartsAt(toDateTimeLocalValue(event.startsAt));
     setEventEndsAt(toDateTimeLocalValue(event.endsAt));
@@ -1219,11 +1237,16 @@ function App() {
     setEventRecurrence(recurrence.type);
     setEventRecurrenceUntil(recurrence.untilDate);
     setEventRecurrenceWeekdays(recurrence.weekdays);
+    setEventFeedback('Evento caricato in modifica.');
+    window.setTimeout(() => {
+      eventFormCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 30);
   };
 
   const handleCancelEditEvent = () => {
     setEditingEventId(null);
     setEventTitle('');
+    setEventDescription('');
     setEventPriorityId('');
     setEventReminderList([]);
     setEventReminderPreset('30m');
@@ -1317,7 +1340,7 @@ function App() {
         <div className="toolbar-left">
           {page !== 'priorities' && (
             <>
-              <label className={page === 'calendar' ? 'toolbar-inline-field' : undefined}>
+              <label className="toolbar-inline-field">
                 Filtro priorita
                 <select value={filterPriority} onChange={(event) => setFilterPriority(event.target.value)}>
                   <option value="all">Tutte</option>
@@ -1329,7 +1352,7 @@ function App() {
                 </select>
               </label>
 
-              <label className={page === 'calendar' ? 'toolbar-inline-field' : undefined}>
+              <label className="toolbar-inline-field">
                 Filtro utente
                 <select value={filterUserId} onChange={(event) => setFilterUserId(event.target.value)}>
                   <option value="all">Tutti</option>
@@ -1799,57 +1822,91 @@ function App() {
           </article>
 
           <aside className="stack">
-            <article className="card list-card">
+            <article className="card list-card" ref={selectedDayCardRef}>
               <h3>
                 Giorno selezionato: {format(selectedCalendarDate, 'dd/MM/yyyy')}
                 {selectedDayEvents.some((event) => event.source === 'holiday') && <span className="holiday-star">★</span>}
               </h3>
-              {selectedDayEvents.map((event) => (
-                <div key={event.id} className="list-row block">
-                  <div>
-                    <strong>{event.title}</strong>
-                    <small>
-                      {event.source === 'holiday'
-                        ? 'Festivita nazionale'
-                        : `${format(event.startsAt, 'HH:mm')} - ${format(event.endsAt, 'HH:mm')}`}
-                    </small>
-                    {(colorCategories[event.color] || event.colorName) && <small>{colorCategories[event.color] || event.colorName}</small>}
-                  </div>
-                  {event.attachmentName && event.attachmentDataUrl && (
-                    <a href={event.attachmentDataUrl} download={event.attachmentName}>
-                      {event.attachmentName}
-                    </a>
-                  )}
-                  {event.source === 'planest' && (
-                    <div className="event-delete-row">
-                      <button type="button" onClick={() => handleStartEditEvent(event)}>
-                        Modifica evento
-                      </button>
-                      {event.isRecurring && (
-                        <button type="button" onClick={() => void handleDeleteOccurrence(event)}>
-                          Elimina occorrenza
-                        </button>
-                      )}
-                      {event.isRecurring && (
-                        <button type="button" onClick={() => void handleDeleteSeriesPartial(event)}>
-                          Elimina da qui in poi
-                        </button>
-                      )}
-                      <button type="button" onClick={() => void handleDeleteSeries(event)}>
-                        {event.isRecurring ? 'Elimina serie' : 'Elimina evento'}
-                      </button>
+              {selectedDayEvents.map((event) => {
+                const isExpanded = expandedDayEventId === event.id;
+                const hasReminders = event.reminders.length > 0;
+                const hasAttachment = Boolean(event.attachmentName && event.attachmentDataUrl);
+                return (
+                  <article key={event.id} className="day-event-card">
+                    <button
+                      type="button"
+                      className="day-event-toggle"
+                      onClick={() => setExpandedDayEventId((current) => (current === event.id ? null : event.id))}
+                    >
+                      <strong>{event.title}</strong>
+                      <span>{isExpanded ? '▾' : '▸'}</span>
+                    </button>
+                    <div className="day-event-meta">
+                      <small>
+                        {event.source === 'holiday'
+                          ? 'Festivita nazionale'
+                          : `${format(event.startsAt, 'HH:mm')} - ${format(event.endsAt, 'HH:mm')}`}
+                      </small>
+                      {hasReminders && <small title="Reminder attivi">🔔</small>}
+                      {hasAttachment && <small title="Allegato presente">📎</small>}
                     </div>
-                  )}
-                </div>
-              ))}
+                    {isExpanded && (
+                      <div className="day-event-details">
+                        {event.description && <p>{event.description}</p>}
+                        {(colorCategories[event.color] || event.colorName) && <small>{colorCategories[event.color] || event.colorName}</small>}
+                        {hasReminders && (
+                          <div className="reminder-list">
+                            {event.reminders.map((reminder, idx) => (
+                              <span key={`${event.id}-rem-${idx}`} className="reminder-chip">
+                                {formatReminder(reminder)}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {hasAttachment && event.attachmentName && event.attachmentDataUrl && (
+                          <a href={event.attachmentDataUrl} download={event.attachmentName}>
+                            {event.attachmentName}
+                          </a>
+                        )}
+                        {event.source === 'planest' && (
+                          <div className="event-delete-row">
+                            <button type="button" onClick={() => handleStartEditEvent(event)}>
+                              Modifica evento
+                            </button>
+                            {event.isRecurring && (
+                              <button type="button" onClick={() => void handleDeleteOccurrence(event)}>
+                                Elimina occorrenza
+                              </button>
+                            )}
+                            {event.isRecurring && (
+                              <button type="button" onClick={() => void handleDeleteSeriesPartial(event)}>
+                                Elimina da qui in poi
+                              </button>
+                            )}
+                            <button type="button" onClick={() => void handleDeleteSeries(event)}>
+                              {event.isRecurring ? 'Elimina serie' : 'Elimina evento'}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
               {selectedDayEvents.length === 0 && <p>Nessuna attivita nel giorno.</p>}
             </article>
 
-            <details className="card panel-card" open>
-              <summary>Nuova Attivita Calendario</summary>
+            <details className="card panel-card" open ref={eventFormCardRef}>
+              <summary>Nuovo Evento Calendario</summary>
               <form className="form-card details-form" onSubmit={handleCreateEvent}>
-                <textarea value={eventTitle} onChange={(event) => setEventTitle(event.target.value)} placeholder="Titolo con @NomeUtente" rows={2} required />
-                <MentionHelper users={effectiveUsers} onMention={(user) => setEventTitle((current) => appendMention(current, user))} />
+                <input value={eventTitle} onChange={(event) => setEventTitle(event.target.value)} placeholder="Titolo evento" required />
+                <textarea
+                  value={eventDescription}
+                  onChange={(event) => setEventDescription(event.target.value)}
+                  placeholder="Descrizione con @NomeUtente"
+                  rows={3}
+                />
+                <MentionHelper users={effectiveUsers} onMention={(user) => setEventDescription((current) => appendMention(current, user))} />
 
                 <select value={eventPriorityId} onChange={(event) => setEventPriorityId(event.target.value)}>
                   <option value="">Nessuna priorita</option>

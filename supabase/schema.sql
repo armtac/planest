@@ -38,6 +38,7 @@ create table if not exists events (
   id uuid primary key,
   category_id uuid references categories(id) on delete set null,
   title text not null,
+  description text not null default '',
   starts_at timestamptz not null,
   ends_at timestamptz not null,
   recurrence_rule text,
@@ -61,6 +62,7 @@ alter table actions add column if not exists mention_user_ids uuid[] not null de
 alter table events add column if not exists exception_dates text[] not null default '{}';
 alter table events add column if not exists mention_user_ids uuid[] not null default '{}';
 alter table events add column if not exists color_name text;
+alter table events add column if not exists description text not null default '';
 
 do $$
 begin

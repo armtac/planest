@@ -34,6 +34,7 @@ export type PlanAction = BaseEntity & {
 export type CalendarEvent = BaseEntity & {
   categoryId: UUID | null;
   title: string;
+  description: string;
   startsAt: string;
   endsAt: string;
   recurrenceRule: string | null;

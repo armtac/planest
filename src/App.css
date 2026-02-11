@@ -302,10 +302,48 @@ body {
   display: block;
 }
 
+.day-event-card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.45rem 0.55rem;
+  margin-bottom: 0.45rem;
+  background: #fff;
+}
+
+.day-event-toggle {
+  width: 100%;
+  min-height: 30px;
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0;
+}
+
+.day-event-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.day-event-details {
+  margin-top: 0.35rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.day-event-details p {
+  margin: 0;
+  color: var(--ink);
+}
+
 .event-delete-row {
   margin-top: 0.45rem;
   display: inline-flex;
   gap: 0.35rem;
+  flex-wrap: wrap;
 }
 
 .event-delete-row button {
