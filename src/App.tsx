@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import {
   addDays,
-  addHours,
+  addMinutes,
   addMonths,
   addWeeks,
   eachDayOfInterval,
@@ -571,11 +571,13 @@ function App() {
   const [eventRecurrence, setEventRecurrence] = useState('none');
   const [eventRecurrenceUntil, setEventRecurrenceUntil] = useState('');
   const [eventRecurrenceWeekdays, setEventRecurrenceWeekdays] = useState<string[]>([]);
-  const [eventReminderInput, setEventReminderInput] = useState('');
+  const [eventReminderPreset, setEventReminderPreset] = useState<'30m' | '15m' | '5m' | '1d' | 'custom'>('30m');
+  const [eventReminderCustomAt, setEventReminderCustomAt] = useState('');
   const [eventReminderList, setEventReminderList] = useState<string[]>([]);
   const [eventColor, setEventColor] = useState<string>(presetColors[0].value);
   const [eventFile, setEventFile] = useState<File | null>(null);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
+  const [eventFeedback, setEventFeedback] = useState<string | null>(null);
 
   const [calendarView, setCalendarView] = useState<CalendarView>('month');
   const [calendarDate, setCalendarDate] = useState(new Date());
@@ -591,6 +593,7 @@ function App() {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [showProfileEmail, setShowProfileEmail] = useState(false);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
+  const selectedDayCardRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!isSupabaseEnabled || !supabase) {
@@ -1002,7 +1005,19 @@ function App() {
     start.setHours(9, 0, 0, 0);
     setSelectedCalendarDate(selected);
     setEventStartsAt(toDateTimeLocalValue(start));
-    setEventEndsAt(toDateTimeLocalValue(addHours(start, 1)));
+    setEventEndsAt(toDateTimeLocalValue(addMinutes(start, 30)));
+    window.setTimeout(() => {
+      selectedDayCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 30);
+  };
+
+  const handleEventStartChange = (value: string) => {
+    setEventStartsAt(value);
+    const start = toIsoFromDateTimeLocal(value);
+    if (!start) {
+      return;
+    }
+    setEventEndsAt(toDateTimeLocalValue(addMinutes(new Date(start), 30)));
   };
 
   const handleCreatePriority = async (event: FormEvent) => {
@@ -1052,12 +1067,33 @@ function App() {
   };
 
   const addEventReminder = () => {
-    const iso = toIsoFromDateTimeLocal(eventReminderInput);
+    let iso: string | null = null;
+    const eventStartDate = toIsoFromDateTimeLocal(eventStartsAt);
+    const start = eventStartDate ? new Date(eventStartDate) : null;
+    if (eventReminderPreset === 'custom') {
+      iso = toIsoFromDateTimeLocal(eventReminderCustomAt);
+    } else if (start) {
+      if (eventReminderPreset === '30m') {
+        iso = addMinutes(start, -30).toISOString();
+      }
+      if (eventReminderPreset === '15m') {
+        iso = addMinutes(start, -15).toISOString();
+      }
+      if (eventReminderPreset === '5m') {
+        iso = addMinutes(start, -5).toISOString();
+      }
+      if (eventReminderPreset === '1d') {
+        iso = addDays(start, -1).toISOString();
+      }
+    }
+
     if (!iso) {
       return;
     }
-    setEventReminderList((current) => [...current, iso]);
-    setEventReminderInput('');
+    setEventReminderList((current) => Array.from(new Set([...current, iso])));
+    if (eventReminderPreset === 'custom') {
+      setEventReminderCustomAt('');
+    }
   };
 
   const removeEventReminder = (idx: number) => {
@@ -1108,8 +1144,10 @@ function App() {
 
     if (editingEventId) {
       await updateEvent(editingEventId, input);
+      setEventFeedback('Evento aggiornato con successo.');
     } else {
       await addEvent(input);
+      setEventFeedback('Evento aggiunto con successo.');
     }
 
     setEventTitle('');
@@ -1117,7 +1155,8 @@ function App() {
     setEventRecurrence('none');
     setEventRecurrenceUntil('');
     setEventRecurrenceWeekdays([]);
-    setEventReminderInput('');
+    setEventReminderPreset('30m');
+    setEventReminderCustomAt('');
     setEventReminderList([]);
     setEventFile(null);
     setEditingEventId(null);
@@ -1157,7 +1196,8 @@ function App() {
     setEventEndsAt(toDateTimeLocalValue(event.endsAt));
     setEventColor(event.color);
     setEventReminderList(sourceEvent?.reminders ?? []);
-    setEventReminderInput('');
+    setEventReminderPreset('30m');
+    setEventReminderCustomAt('');
     setEventFile(null);
     setEventRecurrence(recurrence.type);
     setEventRecurrenceUntil(recurrence.untilDate);
@@ -1169,7 +1209,8 @@ function App() {
     setEventTitle('');
     setEventPriorityId('');
     setEventReminderList([]);
-    setEventReminderInput('');
+    setEventReminderPreset('30m');
+    setEventReminderCustomAt('');
     setEventFile(null);
     setEventRecurrence('none');
     setEventRecurrenceUntil('');
@@ -1501,7 +1542,7 @@ function App() {
           </div>
 
           <div className="stack">
-            <article className="card list-card">
+            <article className="card list-card" ref={selectedDayCardRef}>
               <h3>Filtri Piano Priorita</h3>
               <div className="form-card">
                 <label>
@@ -1802,7 +1843,7 @@ function App() {
                   ))}
                 </select>
 
-                <input type="datetime-local" value={eventStartsAt} onChange={(event) => setEventStartsAt(event.target.value)} required />
+                <input type="datetime-local" value={eventStartsAt} onChange={(event) => handleEventStartChange(event.target.value)} required />
                 <input type="datetime-local" value={eventEndsAt} onChange={(event) => setEventEndsAt(event.target.value)} required />
 
                 <select value={eventRecurrence} onChange={(event) => setEventRecurrence(event.target.value)}>
@@ -1839,14 +1880,45 @@ function App() {
                   </label>
                 )}
 
-                <ReminderEditor
-                  label="Reminder evento"
-                  inputValue={eventReminderInput}
-                  reminders={eventReminderList}
-                  onInputChange={setEventReminderInput}
-                  onAdd={addEventReminder}
-                  onRemove={removeEventReminder}
-                />
+                <div className="reminder-editor">
+                  <label>Reminder evento</label>
+                  <div className="reminder-row">
+                    <select
+                      value={eventReminderPreset}
+                      onChange={(event) => setEventReminderPreset(event.target.value as '30m' | '15m' | '5m' | '1d' | 'custom')}
+                    >
+                      <option value="30m">30 min prima</option>
+                      <option value="15m">15 min prima</option>
+                      <option value="5m">5 min prima</option>
+                      <option value="1d">1 giorno prima</option>
+                      <option value="custom">Altro</option>
+                    </select>
+                    {eventReminderPreset === 'custom' && (
+                      <input
+                        type="datetime-local"
+                        value={eventReminderCustomAt}
+                        onChange={(event) => setEventReminderCustomAt(event.target.value)}
+                      />
+                    )}
+                    <button type="button" onClick={addEventReminder}>
+                      Aggiungi
+                    </button>
+                  </div>
+                  {!eventStartsAt && eventReminderPreset !== 'custom' && (
+                    <small>Imposta data/ora inizio per usare i reminder rapidi.</small>
+                  )}
+                  <div className="reminder-list">
+                    {eventReminderList.length === 0 && <small>Nessun reminder.</small>}
+                    {eventReminderList.map((reminder, idx) => (
+                      <span key={`${reminder}-${idx}`} className="reminder-chip">
+                        {formatReminder(reminder)}
+                        <button type="button" onClick={() => removeEventReminder(idx)}>
+                          x
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
 
                 <label>
                   Allegato
@@ -1864,7 +1936,8 @@ function App() {
                   </select>
                 </label>
 
-                <button type="submit">{editingEventId ? 'Salva modifica evento' : 'Aggiungi attivita'}</button>
+                <button type="submit">{editingEventId ? 'Salva modifica evento' : 'Aggiungi evento'}</button>
+                {eventFeedback && <small>{eventFeedback}</small>}
                 {editingEventId && (
                   <button type="button" className="link-btn" onClick={handleCancelEditEvent}>
                     Annulla modifica
